@@ -1,0 +1,162 @@
+from typing import List, Optional
+from fastapi import HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from datetime import datetime
+from app.models.invoice import Invoice
+from app.models.tenant import Tenant
+from app.models.user import User
+from app.models.transaction import Transaction
+from app.schemas.invoice import InvoiceCreate, InvoiceUpdate, AddPayment
+from app.config import settings
+
+class InvoiceService:
+    @staticmethod
+    def _apply_ownership_scope(query, current_user: User):
+        if current_user.user_type != "SA":
+            query = query.join(Tenant).where(Tenant.parent_id == current_user.id)
+        return query
+
+    @staticmethod
+    async def get_invoices(db: AsyncSession, current_user: User) -> List[Invoice]:
+        query = select(Invoice)
+        query = InvoiceService._apply_ownership_scope(query, current_user)
+        query = query.order_by(Invoice.month.desc())
+        result = await db.execute(query)
+        return result.scalars().all()
+
+    @staticmethod
+    async def get_invoice(db: AsyncSession, invoice_id: int, current_user: User) -> Optional[Invoice]:
+        query = select(Invoice).where(Invoice.id == invoice_id)
+        query = InvoiceService._apply_ownership_scope(query, current_user)
+        result = await db.execute(query)
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def create_invoice(db: AsyncSession, invoice_data: InvoiceCreate, current_user: User) -> Invoice:
+        tenant_query = select(Tenant).where(Tenant.id == invoice_data.tenant_id)
+        if current_user.user_type != "SA":
+            tenant_query = tenant_query.where(Tenant.parent_id == current_user.id)
+        
+        tenant = (await db.execute(tenant_query)).scalar_one_or_none()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found or access denied")
+
+        electricity_charge = invoice_data.electricity_units * settings.ELECTRIC_RATE
+        total_amount = tenant.rent_amount + electricity_charge + invoice_data.water_charge
+
+        status = "paid" if total_amount <= invoice_data.received_amount else "unpaid"
+
+        new_invoice = Invoice(
+            tenant_id=tenant.id,
+            room_no=tenant.room_no,
+            month=invoice_data.month,
+            electricity_units=invoice_data.electricity_units,
+            electricity_charge=electricity_charge,
+            water_charge=invoice_data.water_charge,
+            rent_amount=tenant.rent_amount,
+            total_amount=total_amount,
+            received_amount=invoice_data.received_amount,
+            is_excluded=invoice_data.is_excluded,
+            status=status
+        )
+
+        if invoice_data.is_closer:
+            tenant.status = "close"
+            if tenant.is_advanced:
+                new_invoice.rent_amount = 0
+                new_invoice.total_amount = electricity_charge + invoice_data.water_charge
+                new_invoice.status = "paid" if new_invoice.total_amount <= new_invoice.received_amount else "unpaid"
+
+        db.add(new_invoice)
+        await db.commit()
+        await db.refresh(new_invoice)
+
+        if invoice_data.received_amount > 0:
+            tx = Transaction(
+                tenant_id=tenant.id,
+                invoice_id=new_invoice.id,
+                amount=invoice_data.received_amount,
+                payment_mode="Cash" # default mode for initial
+            )
+            db.add(tx)
+            await db.commit()
+
+        return new_invoice
+
+    @staticmethod
+    async def update_invoice(db: AsyncSession, invoice_id: int, invoice_data: InvoiceUpdate, current_user: User) -> Invoice:
+        invoice = await InvoiceService.get_invoice(db, invoice_id, current_user)
+        if not invoice:
+            raise HTTPException(status_code=404, detail="Invoice not found")
+
+        invoice.electricity_units = invoice_data.electricity_units
+        invoice.water_charge = invoice_data.water_charge
+        invoice.is_excluded = invoice_data.is_excluded
+        
+        invoice.electricity_charge = invoice.electricity_units * settings.ELECTRIC_RATE
+        invoice.total_amount = invoice.rent_amount + invoice.electricity_charge + invoice.water_charge
+        invoice.status = "paid" if invoice.total_amount <= invoice.received_amount else "unpaid"
+
+        await db.commit()
+        await db.refresh(invoice)
+        return invoice
+
+    @staticmethod
+    async def delete_invoice(db: AsyncSession, invoice_id: int, current_user: User):
+        invoice = await InvoiceService.get_invoice(db, invoice_id, current_user)
+        if not invoice:
+            raise HTTPException(status_code=404, detail="Invoice not found")
+        await db.delete(invoice)
+        await db.commit()
+        return True
+
+    @staticmethod
+    async def add_payment(db: AsyncSession, invoice_id: int, payment_data: AddPayment, current_user: User) -> Invoice:
+        invoice = await InvoiceService.get_invoice(db, invoice_id, current_user)
+        if not invoice:
+            raise HTTPException(status_code=404, detail="Invoice not found")
+
+        if payment_data.amount <= 0:
+            raise HTTPException(status_code=400, detail="Payment amount must be greater than zero")
+
+        due_amount = invoice.total_amount - invoice.received_amount
+        if payment_data.amount > due_amount:
+            raise HTTPException(status_code=400, detail=f"Payment amount exceeds due amount. Max allowed: {due_amount}")
+
+        invoice.received_amount += payment_data.amount
+        invoice.status = "paid" if invoice.total_amount <= invoice.received_amount else "unpaid"
+
+        payment_date = datetime.strptime(payment_data.payment_date, "%Y-%m-%d").date() if payment_data.payment_date else None
+
+        tx = Transaction(
+            tenant_id=invoice.tenant_id,
+            invoice_id=invoice.id,
+            amount=payment_data.amount,
+            payment_mode=payment_data.payment_mode,
+            payment_date=payment_date
+        )
+        db.add(tx)
+        
+        await db.commit()
+        await db.refresh(invoice)
+        return invoice
+
+    @staticmethod
+    async def get_last_units(db: AsyncSession, room_no: str, month: str, current_user: User) -> int:
+        # Assuming previous month logic or simple most recent invoice for that room
+        query = select(Invoice.electricity_units).join(Tenant).where(Tenant.room_no == room_no)
+        if current_user.user_type != "SA":
+            query = query.where(Tenant.parent_id == current_user.id)
+        
+        query = query.where(Invoice.month < month).order_by(Invoice.month.desc()).limit(1)
+        result = await db.execute(query)
+        val = result.scalar_one_or_none()
+        return val if val else 0
+
+    @staticmethod
+    async def get_due_invoices(db: AsyncSession, tenant_id: int, current_user: User) -> List[Invoice]:
+        query = select(Invoice).where(Invoice.tenant_id == tenant_id, Invoice.status == "unpaid", Invoice.is_excluded == False)
+        query = InvoiceService._apply_ownership_scope(query, current_user)
+        result = await db.execute(query)
+        return result.scalars().all()

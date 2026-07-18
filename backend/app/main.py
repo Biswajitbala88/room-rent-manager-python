@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, profile, tenants
+from app.routers import auth, profile, tenants, invoices
 
 app = FastAPI(title="Room Rent Manager API")
 
@@ -15,6 +15,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(profile.router)
 app.include_router(tenants.router)
+app.include_router(invoices.router)
 
 @app.get("/")
 async def root():
