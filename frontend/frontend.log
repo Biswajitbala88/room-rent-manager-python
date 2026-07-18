@@ -1,0 +1,6 @@
+npm notice run frontend@0.1.0 dev
+npm notice run next dev
+▲ Next.js 16.2.10 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.0.176:3000
+✓ Ready in 1179ms
