@@ -18,6 +18,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Tenants', href: '/tenants', icon: Users },
     { name: 'Invoices', href: '/invoices', icon: FileText },
     { name: 'Electricity', href: '/electricity', icon: Zap },
+    { name: 'Profile', href: '/profile', icon: Users },
   ];
 
   return (
