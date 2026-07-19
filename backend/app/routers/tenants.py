@@ -1,5 +1,5 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.user import User
@@ -20,6 +20,8 @@ async def create_tenant(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    if current_user.user_type not in ["SA", "A"]:
+        raise HTTPException(status_code=403, detail="Permission denied. Only Admins can manage tenants.")
     return await TenantService.create_tenant(db, tenant_data, current_user)
 
 @router.get("/{tenant_id}", response_model=TenantResponse)
@@ -40,6 +42,8 @@ async def update_tenant(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    if current_user.user_type not in ["SA", "A"]:
+        raise HTTPException(status_code=403, detail="Permission denied. Only Admins can manage tenants.")
     return await TenantService.update_tenant(db, tenant_id, tenant_data, current_user)
 
 @router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -48,6 +52,8 @@ async def delete_tenant(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    if current_user.user_type not in ["SA", "A"]:
+        raise HTTPException(status_code=403, detail="Permission denied. Only Admins can manage tenants.")
     await TenantService.delete_tenant(db, tenant_id, current_user)
 
 @router.post("/{tenant_id}/upload-aadhaar", response_model=TenantResponse)
@@ -57,6 +63,8 @@ async def upload_aadhaar(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    if current_user.user_type not in ["SA", "A"]:
+        raise HTTPException(status_code=403, detail="Permission denied. Only Admins can upload files.")
     return await TenantService.upload_aadhaar(db, tenant_id, files, current_user)
 
 @router.get("/{tenant_id}/transactions", response_model=List[TransactionResponse])

@@ -15,3 +15,5 @@ class UserCreate(BaseModel):
     name: str
     email: EmailStr
     password: str
+    user_type: str | None = None
+    parent_id: int | None = None

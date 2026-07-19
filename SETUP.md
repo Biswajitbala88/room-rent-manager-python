@@ -124,3 +124,19 @@ The frontend application will now be running at [http://localhost:3000](http://l
 4. You are now ready to add tenants, generate invoices, and view electricity reports!
 
 > **API Documentation:** You can view the interactive Swagger API documentation for the backend by navigating to [http://localhost:8000/docs](http://localhost:8000/docs) in your browser.
+
+
+
+<!-- 1. edit btns not working.
+2. invoice download btn not working.
+3. add popup on clicik delete btn.
+4. add some filter depend on filed.
+5. dashboard count showing wrong as per parent id.
+6. can we manage Role user.
+7. how can we create Super admin, admin user, manager.
+8. how to manage module as per user Role
+9. check, how to clac the last and currect month electricity unit are calculate while create-edit invoice. electricity unit should be manage by room number, not tenant wise.
+10. can we make room number module
+11. add quick tool in dashhboard, where i can easily show the invoiced by filter tenant. and add received amt.
+12. add a toggle btn in the menubar 
+13. add media filed for tenant, where we can upload multiple image. and can view the image in large view in popup. -->

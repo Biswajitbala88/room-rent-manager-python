@@ -88,11 +88,8 @@ async def download_invoice(
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
         
-    tenant = await invoice.awaitable_attrs.tenant
-    owner = current_user
-    if current_user.user_type == "SA":
-        # Need to fetch the actual owner
-        owner = await tenant.awaitable_attrs.owner
+    tenant = invoice.tenant
+    owner = tenant.owner if tenant else current_user
 
     pdf_bytes = PDFService.generate_invoice_pdf(invoice, tenant, owner)
     

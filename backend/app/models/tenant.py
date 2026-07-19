@@ -8,6 +8,7 @@ class Tenant(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     parent_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    manager_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     name = Column(String(255), nullable=False)
     phone = Column(String(20), nullable=True)
     room_no = Column(String(50), nullable=False)
@@ -21,6 +22,7 @@ class Tenant(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    owner = relationship("User")
+    owner = relationship("User", foreign_keys=[parent_id])
+    manager = relationship("User", foreign_keys=[manager_id])
     invoices = relationship("Invoice", back_populates="tenant", cascade="all, delete")
     transactions = relationship("Transaction", back_populates="tenant", cascade="all, delete")

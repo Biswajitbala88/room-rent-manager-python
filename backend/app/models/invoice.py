@@ -11,6 +11,8 @@ class Invoice(Base):
     room_no = Column(String(50), nullable=True)
     month = Column(String(7), nullable=False) # YYYY-MM
     electricity_units = Column(Integer, default=0, nullable=False)
+    previous_reading = Column(Integer, default=0, nullable=False)
+    current_reading = Column(Integer, default=0, nullable=False)
     electricity_charge = Column(Numeric(8, 2), default=0, nullable=False)
     water_charge = Column(Numeric(8, 2), default=0, nullable=False)
     rent_amount = Column(Numeric(10, 2), nullable=False)

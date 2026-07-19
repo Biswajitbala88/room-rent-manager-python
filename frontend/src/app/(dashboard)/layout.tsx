@@ -1,68 +1,146 @@
 'use client';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Home, Users, FileText, Zap, LogOut, Menu } from 'lucide-react';
-import { useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Home, Users, FileText, Zap, LogOut, Menu, Building, Shield, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, logout, loading } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  // Load sidebar and dark mode preferences from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const collapsedVal = localStorage.getItem('sidebar-collapsed');
+      if (collapsedVal === 'true') {
+        setIsCollapsed(true);
+      }
+      const darkVal = localStorage.getItem('dark-mode');
+      if (darkVal === 'true') {
+        setDarkMode(true);
+        document.documentElement.classList.add('dark');
+      }
+    }
+  }, []);
+
+  // Redirect Manager if they try to access /users
+  useEffect(() => {
+    if (user && user.user_type === 'M' && pathname.startsWith('/users')) {
+      router.push('/dashboard');
+    }
+  }, [user, pathname, router]);
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center dark:bg-gray-900 dark:text-white">Loading...</div>;
   if (!user) return null;
+
+  const toggleSidebarCollapse = () => {
+    const newVal = !isCollapsed;
+    setIsCollapsed(newVal);
+    localStorage.setItem('sidebar-collapsed', String(newVal));
+  };
+
+  const toggleDarkMode = () => {
+    const newVal = !darkMode;
+    setDarkMode(newVal);
+    localStorage.setItem('dark-mode', String(newVal));
+    if (newVal) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: Home },
+    { name: 'Rooms', href: '/rooms', icon: Building },
     { name: 'Tenants', href: '/tenants', icon: Users },
     { name: 'Invoices', href: '/invoices', icon: FileText },
     { name: 'Electricity', href: '/electricity', icon: Zap },
-    { name: 'Profile', href: '/profile', icon: Users },
   ];
 
+  // Show user/role management to SA and A only
+  if (user.user_type === 'SA' || user.user_type === 'A') {
+    navigation.push({ name: 'Users', href: '/users', icon: Shield });
+  }
+
+  navigation.push({ name: 'Profile', href: '/profile', icon: Users });
+
   return (
-    <div className="min-h-screen bg-gray-100 flex">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex text-gray-900 dark:text-gray-100 transition-colors duration-150">
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white transform transition-transform duration-200 ease-in-out lg:relative lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="h-16 flex items-center px-6 bg-gray-950 font-bold text-xl">
-          Room Rent Manager
+      <div 
+        className={`fixed inset-y-0 left-0 z-50 bg-gray-900 text-white transform transition-all duration-200 ease-in-out lg:relative lg:translate-x-0 
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
+          ${isCollapsed ? 'w-20' : 'w-64'} h-screen flex flex-col`}
+      >
+        <div className="h-16 flex items-center justify-between px-4 bg-gray-950 font-bold text-lg border-b border-gray-800 flex-shrink-0">
+          {!isCollapsed && <span className="truncate">Room Rent Manager</span>}
+          <button 
+            onClick={toggleSidebarCollapse}
+            className="hidden lg:flex p-1.5 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white mx-auto"
+            title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          >
+            {isCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+          </button>
         </div>
-        <nav className="p-4 space-y-1">
+
+        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
           {navigation.map((item) => {
             const isActive = pathname.startsWith(item.href);
             return (
               <Link
                 key={item.name}
                 href={item.href}
-                className={`flex items-center px-4 py-3 rounded-lg transition-colors ${isActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800'}`}
+                className={`flex items-center px-3 py-2.5 rounded-lg transition-colors ${isActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800'} ${isCollapsed ? 'justify-center' : ''}`}
+                title={isCollapsed ? item.name : undefined}
               >
-                <item.icon className="h-5 w-5 mr-3" />
-                {item.name}
+                <item.icon className={`h-5 w-5 ${isCollapsed ? '' : 'mr-3'}`} />
+                {!isCollapsed && <span>{item.name}</span>}
               </Link>
             );
           })}
         </nav>
-        <div className="absolute bottom-0 w-full p-4 border-t border-gray-800">
-          <div className="flex items-center mb-4 px-4 text-sm text-gray-400">
-            <span className="truncate">{user.name} ({user.user_type})</span>
-          </div>
+
+        <div className="p-3 border-t border-gray-800 bg-gray-900 flex-shrink-0">
+          {/* Theme Toggle inside Sidebar */}
+          <button
+            onClick={toggleDarkMode}
+            className={`flex w-full items-center px-3 py-2 text-gray-300 hover:bg-gray-800 rounded-lg transition-colors mb-2 ${isCollapsed ? 'justify-center' : ''}`}
+            title="Toggle Light/Dark Theme"
+          >
+            {darkMode ? <Sun className="h-5 w-5 text-yellow-400" /> : <Moon className="h-5 w-5 text-blue-400" />}
+            {!isCollapsed && <span className="ml-3">Theme</span>}
+          </button>
+
+          {!isCollapsed && (
+            <div className="flex flex-col mb-3 px-3 text-xs text-gray-400">
+              <span className="truncate font-medium">{user.name}</span>
+              <span className="text-[10px] text-gray-500">Role: {user.user_type}</span>
+            </div>
+          )}
+
           <button
             onClick={logout}
-            className="flex w-full items-center px-4 py-2 text-gray-300 hover:bg-gray-800 rounded-lg transition-colors"
+            className={`flex w-full items-center px-3 py-2 text-gray-300 hover:bg-gray-800 rounded-lg transition-colors ${isCollapsed ? 'justify-center' : ''}`}
+            title={isCollapsed ? "Sign Out" : undefined}
           >
-            <LogOut className="h-5 w-5 mr-3" />
-            Sign Out
+            <LogOut className={`h-5 w-5 ${isCollapsed ? '' : 'mr-3'}`} />
+            {!isCollapsed && <span>Sign Out</span>}
           </button>
         </div>
       </div>
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="bg-white shadow-sm lg:hidden">
+        <header className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700 lg:hidden">
           <div className="px-4 h-16 flex items-center justify-between">
-            <span className="font-bold text-xl">Room Rent Manager</span>
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 -mr-2">
+            <span className="font-bold text-xl text-gray-900 dark:text-white">Room Rent Manager</span>
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
               <Menu className="h-6 w-6" />
             </button>
           </div>

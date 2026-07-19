@@ -6,6 +6,8 @@ class InvoiceBase(BaseModel):
     tenant_id: int
     month: str # YYYY-MM
     electricity_units: int = 0
+    previous_reading: int = 0
+    current_reading: int = 0
     water_charge: float = 0.0
     received_amount: float = 0.0
     is_excluded: bool = False
@@ -15,6 +17,7 @@ class InvoiceCreate(InvoiceBase):
 
 class InvoiceUpdate(InvoiceBase):
     pass
+
 
 class InvoiceResponse(InvoiceBase):
     id: int

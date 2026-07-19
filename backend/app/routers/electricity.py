@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 from app.database import get_db
 from app.models.user import User
 from app.models.tenant import Tenant
@@ -16,19 +17,23 @@ router = APIRouter(prefix="/api/electricity", tags=["electricity"])
 async def get_electricity_report(
     month: Optional[str] = None,
     tenant_id: Optional[int] = None,
+    room_no: Optional[str] = None,
     page: int = 1,
     limit: int = 10,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    query = select(Invoice).join(Tenant)
+    query = select(Invoice).join(Tenant).options(joinedload(Invoice.tenant))
     if current_user.user_type != "SA":
-        query = query.where(Tenant.parent_id == current_user.id)
+        owner_id = current_user.parent_id if current_user.user_type == "M" else current_user.id
+        query = query.where(Tenant.parent_id == owner_id)
 
     if month:
         query = query.where(Invoice.month == month)
     if tenant_id:
         query = query.where(Invoice.tenant_id == tenant_id)
+    if room_no:
+        query = query.where(Invoice.room_no.ilike(f"%{room_no}%"))
 
     query = query.where(Invoice.is_excluded == False)
 

@@ -22,8 +22,9 @@ async def get_dashboard_summary(
     invoice_query = select(Invoice).where(Invoice.month == month, Invoice.is_excluded == False)
     
     if current_user.user_type != "SA":
-        tenant_query = tenant_query.where(Tenant.parent_id == current_user.id)
-        invoice_query = invoice_query.join(Tenant).where(Tenant.parent_id == current_user.id)
+        owner_id = current_user.parent_id if current_user.user_type == "M" else current_user.id
+        tenant_query = tenant_query.where(Tenant.parent_id == owner_id)
+        invoice_query = invoice_query.join(Tenant).where(Tenant.parent_id == owner_id)
 
     # 1. Tenants stats
     total_tenants_res = await db.execute(select(func.count(Tenant.id)).select_from(tenant_query.subquery()))
