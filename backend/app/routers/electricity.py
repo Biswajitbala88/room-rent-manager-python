@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
+from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models.user import User
 from app.models.tenant import Tenant
@@ -48,7 +49,7 @@ async def get_electricity_report(
 
     # Paginate
     offset = (page - 1) * limit
-    paginated_query = query.order_by(Invoice.month.desc(), Invoice.id.desc()).offset(offset).limit(limit)
+    paginated_query = query.options(selectinload(Invoice.tenant)).order_by(Invoice.month.desc(), Invoice.id.desc()).offset(offset).limit(limit)
     
     items_res = await db.execute(paginated_query)
     items = items_res.scalars().all()

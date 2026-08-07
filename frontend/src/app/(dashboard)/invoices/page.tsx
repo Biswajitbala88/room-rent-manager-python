@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, API_BASE_URL } from '@/lib/api';
 import Link from 'next/link';
 import { Plus, Download, Trash2, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -40,7 +40,7 @@ export default function InvoicesPage() {
 
   const handleDownload = (id: number) => {
     const token = Cookies.get('access_token');
-    const url = `http://localhost:8000/api/invoices/${id}/download`;
+    const url = `${API_BASE_URL}/invoices/${id}/download`;
     
     fetch(url, {
       headers: {
