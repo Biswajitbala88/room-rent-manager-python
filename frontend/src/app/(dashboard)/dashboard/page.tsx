@@ -191,17 +191,20 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
-                      <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Receive Amt (₹):</span>
                         <input 
                           type="number" 
                           step="0.01"
                           max={dueAmount}
+                          placeholder="Amount"
                           value={paymentAmounts[invoice.id] || ''}
                           onChange={(e) => handlePayAmountChange(invoice.id, e.target.value)}
                           className="w-28 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white px-2 py-1.5 text-sm"
                         />
                       </div>
-                      <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Mode:</span>
                         <select 
                           value={paymentModes[invoice.id] || 'Cash'}
                           onChange={(e) => handlePayModeChange(invoice.id, e.target.value)}
