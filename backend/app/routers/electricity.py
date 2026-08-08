@@ -23,7 +23,7 @@ async def get_electricity_report(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    query = select(Invoice).join(Tenant).options(joinedload(Invoice.tenant))
+    query = select(Invoice).join(Tenant).options(selectinload(Invoice.tenant))
     if current_user.user_type != "SA":
         owner_id = current_user.parent_id if current_user.user_type == "M" else current_user.id
         query = query.where(Tenant.parent_id == owner_id)
