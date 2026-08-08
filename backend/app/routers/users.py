@@ -89,6 +89,9 @@ async def update_user(
     await db.refresh(user)
     return user
 
+from app.models.room import Room
+from app.models.tenant import Tenant
+
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: int,
@@ -103,5 +106,63 @@ async def delete_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    await db.delete(user)
-    await db.commit()
+    # 1. Self deletion protection
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot delete your own account while logged in as Super Admin."
+        )
+
+    # 2. Check for child managers assigned to this Admin
+    managed_users_res = await db.execute(select(User).where(User.parent_id == user.id))
+    managed_users = managed_users_res.scalars().all()
+    if managed_users:
+        names = ", ".join([u.name for u in managed_users[:3]])
+        more = f" and {len(managed_users) - 3} more" if len(managed_users) > 3 else ""
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete user '{user.name}' because {len(managed_users)} manager account(s) ({names}{more}) are assigned to them. Please reassign or delete these managers first."
+        )
+
+    # 3. Check for rooms owned by this user
+    rooms_res = await db.execute(select(Room).where(Room.parent_id == user.id))
+    rooms = rooms_res.scalars().all()
+    if rooms:
+        room_nos = ", ".join([r.room_no for r in rooms[:5]])
+        more = f" and {len(rooms) - 5} more" if len(rooms) > 5 else ""
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete user '{user.name}' because they own {len(rooms)} room(s) ({room_nos}{more}). Please delete or reassign their rooms first."
+        )
+
+    # 4. Check for tenants registered under this user
+    tenants_res = await db.execute(select(Tenant).where(Tenant.parent_id == user.id))
+    tenants = tenants_res.scalars().all()
+    if tenants:
+        tenant_names = ", ".join([t.name for t in tenants[:3]])
+        more = f" and {len(tenants) - 3} more" if len(tenants) > 3 else ""
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete user '{user.name}' because {len(tenants)} tenant(s) ({tenant_names}{more}) are registered under them. Please delete or reassign their tenants first."
+        )
+
+    # 5. Check if user is a Manager assigned to any tenants
+    managed_tenants_res = await db.execute(select(Tenant).where(Tenant.manager_id == user.id))
+    managed_tenants = managed_tenants_res.scalars().all()
+    if managed_tenants:
+        tenant_names = ", ".join([t.name for t in managed_tenants[:3]])
+        more = f" and {len(managed_tenants) - 3} more" if len(managed_tenants) > 3 else ""
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete manager '{user.name}' because they are assigned to {len(managed_tenants)} tenant(s) ({tenant_names}{more}). Please unassign or reassign these tenants first."
+        )
+
+    try:
+        await db.delete(user)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete user '{user.name}' due to database dependency: {str(e)}"
+        )

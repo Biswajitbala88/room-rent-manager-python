@@ -4,15 +4,18 @@ from datetime import datetime
 class RoomBase(BaseModel):
     room_no: str
     rent_amount: float
+    description: str | None = None
     status: str = "vacant"
 
 class RoomCreate(RoomBase):
-    pass
+    parent_id: int | None = None
 
 class RoomUpdate(BaseModel):
     room_no: str | None = None
     rent_amount: float | None = None
+    description: str | None = None
     status: str | None = None
+    parent_id: int | None = None
 
 class RoomResponse(RoomBase):
     id: int

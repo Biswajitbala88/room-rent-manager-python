@@ -52,3 +52,7 @@ frontend/out/
 
 # Uploads
 backend/uploads/
+
+# Logs
+*.log
+backend/*.log

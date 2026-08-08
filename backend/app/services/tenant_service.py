@@ -166,11 +166,28 @@ class TenantService:
         room_res = await db.execute(select(Room).where(Room.room_no == tenant.room_no, Room.parent_id == parent_id))
         room = room_res.scalar_one_or_none()
         if room:
-            room.status = "vacant"
+            # Check if any OTHER active tenant is in the room
+            other_active_res = await db.execute(
+                select(Tenant).where(
+                    Tenant.room_no == tenant.room_no,
+                    Tenant.parent_id == parent_id,
+                    Tenant.status == "active",
+                    Tenant.id != tenant_id
+                )
+            )
+            if not other_active_res.scalar_one_or_none():
+                room.status = "vacant"
 
-        await db.delete(tenant)
-        await db.commit()
-        return True
+        try:
+            await db.delete(tenant)
+            await db.commit()
+            return True
+        except Exception as e:
+            await db.rollback()
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot delete tenant '{tenant.name}': {str(e)}"
+            )
 
     @staticmethod
     async def get_tenant_transactions(db: AsyncSession, tenant_id: int, current_user: User) -> List[Transaction]:

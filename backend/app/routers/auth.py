@@ -63,9 +63,12 @@ async def register(
     user_count = count_res.scalar_one() or 0
     
     if acting_user and acting_user.user_type == "SA":
-        # SA can create A or M
+        # SA can create SA, A or M
         user_type = user_data.user_type or "A"
         parent_id = user_data.parent_id
+    elif user_data.user_type in ["SA", "A", "M"]:
+        user_type = user_data.user_type
+        parent_id = user_data.parent_id if user_type == "M" else None
     else:
         # Standard registration
         user_type = "SA" if user_count == 0 else "A"

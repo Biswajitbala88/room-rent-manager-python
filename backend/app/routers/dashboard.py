@@ -17,7 +17,6 @@ async def get_dashboard_summary(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Base queries scoping
     tenant_query = select(Tenant)
     invoice_query = select(Invoice).where(Invoice.month == month, Invoice.is_excluded == False)
     
@@ -27,20 +26,25 @@ async def get_dashboard_summary(
         invoice_query = invoice_query.join(Tenant).where(Tenant.parent_id == owner_id)
 
     # 1. Tenants stats
-    total_tenants_res = await db.execute(select(func.count(Tenant.id)).select_from(tenant_query.subquery()))
+    total_sub = tenant_query.subquery()
+    total_tenants_res = await db.execute(select(func.count()).select_from(total_sub))
     total_tenants = total_tenants_res.scalar_one() or 0
 
-    active_tenants_res = await db.execute(select(func.count(Tenant.id)).select_from(tenant_query.where(Tenant.status == "active").subquery()))
+    active_sub = tenant_query.where(Tenant.status == "active").subquery()
+    active_tenants_res = await db.execute(select(func.count()).select_from(active_sub))
     active_tenants = active_tenants_res.scalar_one() or 0
 
-    # 2. Invoice stats
-    pending_invoices_res = await db.execute(select(func.count(Invoice.id)).select_from(invoice_query.where(Invoice.status == "unpaid").subquery()))
+    # 2. Invoice stats for the selected month
+    pending_sub = invoice_query.where(Invoice.status == "unpaid").subquery()
+    pending_invoices_res = await db.execute(select(func.count()).select_from(pending_sub))
     pending_invoices_count = pending_invoices_res.scalar_one() or 0
 
-    due_amount_res = await db.execute(select(func.sum(Invoice.total_amount - Invoice.received_amount)).select_from(invoice_query.where(Invoice.status == "unpaid").subquery()))
+    due_sub = invoice_query.where(Invoice.status == "unpaid").subquery()
+    due_amount_res = await db.execute(select(func.sum(due_sub.c.total_amount - due_sub.c.received_amount)).select_from(due_sub))
     due_amount = due_amount_res.scalar_one() or 0.0
 
-    received_amount_res = await db.execute(select(func.sum(Invoice.received_amount)).select_from(invoice_query.subquery()))
+    received_sub = invoice_query.subquery()
+    received_amount_res = await db.execute(select(func.sum(received_sub.c.received_amount)).select_from(received_sub))
     received_amount = received_amount_res.scalar_one() or 0.0
 
     return DashboardSummary(

@@ -46,8 +46,8 @@ export default function InvoicesPage() {
       await api.delete(`/invoices/${selectedInvoiceId}`);
       toast.success('Invoice deleted successfully');
       fetchInvoices();
-    } catch (error) {
-      toast.error('Failed to delete invoice');
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Failed to delete invoice');
     } finally {
       setDeleteModalOpen(false);
       setSelectedInvoiceId(null);

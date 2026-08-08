@@ -38,11 +38,12 @@ async def get_electricity_report(
     query = query.where(Invoice.is_excluded == False)
 
     # Aggregates
+    sub = query.subquery()
     agg_query = select(
-        func.sum(Invoice.electricity_units).label("total_units"),
-        func.sum(Invoice.electricity_charge).label("total_cost"),
-        func.count(Invoice.id).label("total_items")
-    ).select_from(query.subquery())
+        func.sum(sub.c.electricity_units).label("total_units"),
+        func.sum(sub.c.electricity_charge).label("total_cost"),
+        func.count().label("total_items")
+    ).select_from(sub)
     
     agg_res = await db.execute(agg_query)
     agg_row = agg_res.one_or_none()
