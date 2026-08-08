@@ -94,7 +94,7 @@ export default function DashboardPage() {
       const payload = {
         amount,
         payment_mode: mode,
-        payment_date: format(new Date(), 'yyyy-MM-DD')
+        payment_date: format(new Date(), 'yyyy-MM-dd')
       };
       await api.post(`/invoices/${invoiceId}/add-payment`, payload);
       toast.success('Payment recorded successfully');
