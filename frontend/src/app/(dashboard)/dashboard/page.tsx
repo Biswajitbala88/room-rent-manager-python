@@ -218,7 +218,7 @@ export default function DashboardPage() {
                       <button
                         onClick={() => handleRecordPayment(invoice.id)}
                         disabled={payingInvoiceId === invoice.id}
-                        className="flex items-center px-4 py-1.5 bg-blue-650 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-55"
+                        className="flex items-center px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-55"
                       >
                         {payingInvoiceId === invoice.id ? 'Saving...' : 'Record Payment'}
                         <ArrowRight className="h-4 w-4 ml-2" />
