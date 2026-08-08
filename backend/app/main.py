@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 from app.routers import auth, profile, tenants, invoices, dashboard, electricity, rooms, users
+from app.config import settings
 
 app = FastAPI(title="Room Rent Manager API")
 
@@ -11,9 +12,12 @@ uploads_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads"
 os.makedirs(uploads_dir, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
+origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

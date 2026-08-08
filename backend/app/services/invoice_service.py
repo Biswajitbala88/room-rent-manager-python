@@ -1,8 +1,9 @@
 from typing import List, Optional
 from fastapi import HTTPException
+from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from datetime import datetime
 from decimal import Decimal
 from app.models.invoice import Invoice
@@ -23,7 +24,7 @@ class InvoiceService:
 
     @staticmethod
     async def get_invoices(db: AsyncSession, current_user: User) -> List[Invoice]:
-        query = select(Invoice).options(joinedload(Invoice.tenant))
+        query = select(Invoice).options(selectinload(Invoice.tenant))
         query = InvoiceService._apply_ownership_scope(query, current_user)
         query = query.order_by(Invoice.month.desc())
         result = await db.execute(query)
@@ -31,9 +32,9 @@ class InvoiceService:
 
     @staticmethod
     async def get_invoice(db: AsyncSession, invoice_id: int, current_user: User) -> Optional[Invoice]:
-        query = select(Invoice).options(
-            joinedload(Invoice.tenant).joinedload(Tenant.owner)
-        ).where(Invoice.id == invoice_id)
+        query = select(Invoice).where(Invoice.id == invoice_id).options(
+            selectinload(Invoice.tenant).selectinload(Tenant.owner)
+        )
         query = InvoiceService._apply_ownership_scope(query, current_user)
         result = await db.execute(query)
         return result.scalar_one_or_none()
@@ -50,7 +51,7 @@ class InvoiceService:
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found or access denied")
 
-        electricity_charge = Decimal(str(invoice_data.electricity_units * settings.ELECTRIC_RATE))
+        electricity_charge = Decimal(str(invoice_data.electricity_units)) * Decimal(str(settings.ELECTRIC_RATE))
         water_charge = Decimal(str(invoice_data.water_charge))
         received_amount = Decimal(str(invoice_data.received_amount))
         total_amount = tenant.rent_amount + electricity_charge + water_charge
@@ -94,16 +95,14 @@ class InvoiceService:
             tx = Transaction(
                 tenant_id=tenant.id,
                 invoice_id=new_invoice.id,
-                amount=invoice_data.received_amount,
+                amount=Decimal(str(invoice_data.received_amount)),
                 payment_mode="Cash" # default mode for initial
             )
             db.add(tx)
             await db.commit()
 
-        result = await db.execute(
-            select(Invoice).options(joinedload(Invoice.tenant)).where(Invoice.id == new_invoice.id)
-        )
-        return result.scalar_one()
+        await new_invoice.awaitable_attrs.tenant
+        return new_invoice
 
     @staticmethod
     async def update_invoice(db: AsyncSession, invoice_id: int, invoice_data: InvoiceUpdate, current_user: User) -> Invoice:
@@ -131,15 +130,15 @@ class InvoiceService:
         invoice.is_excluded = invoice_data.is_excluded
         invoice.received_amount = Decimal(str(invoice_data.received_amount))
         
-        invoice.electricity_charge = Decimal(str(invoice.electricity_units * settings.ELECTRIC_RATE))
+        invoice.electricity_charge = Decimal(str(invoice.electricity_units)) * Decimal(str(settings.ELECTRIC_RATE))
+        invoice.water_charge = Decimal(str(invoice_data.water_charge))
         invoice.total_amount = invoice.rent_amount + invoice.electricity_charge + invoice.water_charge
-        invoice.status = "paid" if invoice.total_amount <= invoice.received_amount else "unpaid"
+        invoice.status = "paid" if invoice.total_amount <= Decimal(str(invoice_data.received_amount)) else "unpaid"
 
         await db.commit()
-        result = await db.execute(
-            select(Invoice).options(joinedload(Invoice.tenant)).where(Invoice.id == invoice.id)
-        )
-        return result.scalar_one()
+        await db.refresh(invoice)
+        await invoice.awaitable_attrs.tenant
+        return invoice
 
     @staticmethod
     async def delete_invoice(db: AsyncSession, invoice_id: int, current_user: User):
@@ -156,15 +155,15 @@ class InvoiceService:
         if not invoice:
             raise HTTPException(status_code=404, detail="Invoice not found")
 
-        payment_amount = Decimal(str(payment_data.amount))
-        if payment_amount <= 0:
+        payment_amount_dec = Decimal(str(payment_data.amount))
+        if payment_amount_dec <= 0:
             raise HTTPException(status_code=400, detail="Payment amount must be greater than zero")
 
         due_amount = invoice.total_amount - invoice.received_amount
-        if payment_amount > due_amount:
+        if payment_amount_dec > due_amount:
             raise HTTPException(status_code=400, detail=f"Payment amount exceeds due amount. Max allowed: {due_amount}")
 
-        invoice.received_amount += payment_amount
+        invoice.received_amount += payment_amount_dec
         invoice.status = "paid" if invoice.total_amount <= invoice.received_amount else "unpaid"
 
         payment_date = datetime.strptime(payment_data.payment_date, "%Y-%m-%d").date() if payment_data.payment_date else None
@@ -172,17 +171,16 @@ class InvoiceService:
         tx = Transaction(
             tenant_id=invoice.tenant_id,
             invoice_id=invoice.id,
-            amount=payment_data.amount,
+            amount=payment_amount_dec,
             payment_mode=payment_data.payment_mode,
             payment_date=payment_date
         )
         db.add(tx)
         
         await db.commit()
-        result = await db.execute(
-            select(Invoice).options(joinedload(Invoice.tenant)).where(Invoice.id == invoice.id)
-        )
-        return result.scalar_one()
+        await db.refresh(invoice)
+        await invoice.awaitable_attrs.tenant
+        return invoice
 
     @staticmethod
     async def get_last_units(db: AsyncSession, room_no: str, month: str, current_user: User) -> int:
@@ -198,7 +196,7 @@ class InvoiceService:
 
     @staticmethod
     async def get_due_invoices(db: AsyncSession, tenant_id: int, current_user: User) -> List[Invoice]:
-        query = select(Invoice).options(joinedload(Invoice.tenant)).where(Invoice.tenant_id == tenant_id, Invoice.status == "unpaid", Invoice.is_excluded == False)
+        query = select(Invoice).where(Invoice.tenant_id == tenant_id, Invoice.status == "unpaid", Invoice.is_excluded == False).options(selectinload(Invoice.tenant))
         query = InvoiceService._apply_ownership_scope(query, current_user)
         result = await db.execute(query)
         return result.scalars().all()

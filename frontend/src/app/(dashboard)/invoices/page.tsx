@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, API_BASE_URL } from '@/lib/api';
 import Link from 'next/link';
 import { Plus, Download, Trash2, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
