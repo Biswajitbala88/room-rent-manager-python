@@ -11,6 +11,7 @@ class TenantBase(BaseModel):
     is_water_charge: bool = False
     water_charge: float = 0.0
     is_advanced: bool = False
+    advance_amount: float = 0.0
 
 class TenantCreate(TenantBase):
     parent_id: int | None = None
@@ -26,6 +27,7 @@ class TenantUpdate(BaseModel):
     is_water_charge: bool | None = None
     water_charge: float | None = None
     is_advanced: bool | None = None
+    advance_amount: float | None = None
     parent_id: int | None = None
     manager_id: int | None = None
 

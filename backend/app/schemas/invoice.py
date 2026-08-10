@@ -11,9 +11,11 @@ class InvoiceBase(BaseModel):
     water_charge: float = 0.0
     received_amount: float = 0.0
     is_excluded: bool = False
+    is_closer: bool = False
+    advance_applied: float = 0.0
 
 class InvoiceCreate(InvoiceBase):
-    is_closer: bool = False
+    pass
 
 class InvoiceUpdate(InvoiceBase):
     pass

@@ -166,6 +166,49 @@ export default function NewInvoicePage() {
               <label htmlFor="is_excluded" className="ml-2 block text-sm text-gray-900 dark:text-gray-300">Exclude from Dashboard & Electricity Report</label>
             </div>
           </div>
+
+          {(() => {
+            const selectedTenant = tenants.find(t => t.id === parseInt(formData.tenant_id));
+            if (!selectedTenant) return null;
+            
+            const rent = selectedTenant.rent_amount;
+            const electricity = (parseFloat(formData.electricity_units) || 0) * 10;
+            const water = parseFloat(formData.water_charge) || 0;
+            const advanceApplied = formData.is_closer && (selectedTenant.is_advanced || selectedTenant.advance_amount > 0) 
+              ? (selectedTenant.advance_amount > 0 ? selectedTenant.advance_amount : selectedTenant.rent_amount) 
+              : 0;
+            const total = rent + electricity + water - advanceApplied;
+
+            return (
+              <div className="p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-gray-100 dark:border-gray-700 space-y-2">
+                <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Invoice Summary Preview</h3>
+                <div className="grid grid-cols-2 gap-y-1.5 text-xs text-gray-600 dark:text-gray-400">
+                  <span>Room Rent:</span>
+                  <span className="text-right font-medium text-gray-800 dark:text-gray-200">₹{rent.toFixed(2)}</span>
+                  
+                  <span>Electricity ({parseFloat(formData.electricity_units) || 0} units @ ₹10):</span>
+                  <span className="text-right font-medium text-gray-800 dark:text-gray-200">₹{electricity.toFixed(2)}</span>
+                  
+                  <span>Water Charge:</span>
+                  <span className="text-right font-medium text-gray-800 dark:text-gray-200">₹{water.toFixed(2)}</span>
+                  
+                  {advanceApplied > 0 && (
+                    <>
+                      <span className="text-red-500 font-semibold">Advance Adjusted:</span>
+                      <span className="text-right font-semibold text-red-500">-₹{advanceApplied.toFixed(2)}</span>
+                    </>
+                  )}
+                  
+                  <div className="col-span-2 border-t border-dashed border-gray-200 dark:border-gray-650 my-1"></div>
+                  
+                  <span className="text-sm font-bold text-gray-800 dark:text-gray-150">Payable Total:</span>
+                  <span className="text-right text-sm font-bold text-blue-600 dark:text-blue-400">
+                    ₹{total.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
           
           <div className="pt-6 flex justify-end gap-3 border-t border-gray-100 dark:border-gray-700">
             <button type="button" onClick={() => router.push('/invoices')} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">Cancel</button>

@@ -54,8 +54,15 @@ class InvoiceService:
         electricity_charge = Decimal(str(invoice_data.electricity_units)) * Decimal(str(settings.ELECTRIC_RATE))
         water_charge = Decimal(str(invoice_data.water_charge))
         received_amount = Decimal(str(invoice_data.received_amount))
-        total_amount = tenant.rent_amount + electricity_charge + water_charge
+        
+        rent_amount = tenant.rent_amount
+        advance_applied = Decimal("0.00")
+        
+        if invoice_data.is_closer:
+            if tenant.is_advanced or tenant.advance_amount > 0:
+                advance_applied = Decimal(str(tenant.advance_amount)) if tenant.advance_amount > 0 else Decimal(str(tenant.rent_amount))
 
+        total_amount = rent_amount + electricity_charge + water_charge - advance_applied
         status = "paid" if total_amount <= received_amount else "unpaid"
 
         new_invoice = Invoice(
@@ -67,14 +74,16 @@ class InvoiceService:
             current_reading=invoice_data.current_reading,
             electricity_charge=electricity_charge,
             water_charge=water_charge,
-            rent_amount=tenant.rent_amount,
+            rent_amount=rent_amount,
             total_amount=total_amount,
             received_amount=received_amount,
             is_excluded=invoice_data.is_excluded,
+            is_closer=invoice_data.is_closer,
+            advance_applied=advance_applied,
             status=status
         )
 
-        if invoice_data.is_closer:
+        if invoice_data.is_closer and status == "paid":
             tenant.status = "close"
             # Set room to vacant
             from app.models.room import Room
@@ -82,11 +91,6 @@ class InvoiceService:
             room = room_res.scalar_one_or_none()
             if room:
                 room.status = "vacant"
-
-            if tenant.is_advanced:
-                new_invoice.rent_amount = Decimal("0.00")
-                new_invoice.total_amount = electricity_charge + water_charge
-                new_invoice.status = "paid" if new_invoice.total_amount <= new_invoice.received_amount else "unpaid"
 
         db.add(new_invoice)
         await db.commit()
@@ -126,14 +130,30 @@ class InvoiceService:
         invoice.electricity_units = invoice_data.electricity_units
         invoice.previous_reading = invoice_data.previous_reading
         invoice.current_reading = invoice_data.current_reading
-        invoice.water_charge = Decimal(str(invoice_data.water_charge))
         invoice.is_excluded = invoice_data.is_excluded
         invoice.received_amount = Decimal(str(invoice_data.received_amount))
         
         invoice.electricity_charge = Decimal(str(invoice.electricity_units)) * Decimal(str(settings.ELECTRIC_RATE))
         invoice.water_charge = Decimal(str(invoice_data.water_charge))
-        invoice.total_amount = invoice.rent_amount + invoice.electricity_charge + invoice.water_charge
+        
+        advance_applied = Decimal("0.00")
+        if invoice_data.is_closer:
+            if tenant.is_advanced or tenant.advance_amount > 0:
+                advance_applied = Decimal(str(tenant.advance_amount)) if tenant.advance_amount > 0 else Decimal(str(tenant.rent_amount))
+
+        invoice.is_closer = invoice_data.is_closer
+        invoice.advance_applied = advance_applied
+        invoice.total_amount = invoice.rent_amount + invoice.electricity_charge + invoice.water_charge - invoice.advance_applied
         invoice.status = "paid" if invoice.total_amount <= Decimal(str(invoice_data.received_amount)) else "unpaid"
+
+        if invoice.is_closer and invoice.status == "paid":
+            tenant.status = "close"
+            # Set room to vacant
+            from app.models.room import Room
+            room_res = await db.execute(select(Room).where(Room.room_no == tenant.room_no, Room.parent_id == tenant.parent_id))
+            room = room_res.scalar_one_or_none()
+            if room:
+                room.status = "vacant"
 
         await db.commit()
         await db.refresh(invoice)
@@ -165,6 +185,16 @@ class InvoiceService:
 
         invoice.received_amount += payment_amount_dec
         invoice.status = "paid" if invoice.total_amount <= invoice.received_amount else "unpaid"
+
+        if invoice.is_closer and invoice.status == "paid":
+            tenant = await invoice.awaitable_attrs.tenant
+            tenant.status = "close"
+            # Set room to vacant
+            from app.models.room import Room
+            room_res = await db.execute(select(Room).where(Room.room_no == tenant.room_no, Room.parent_id == tenant.parent_id))
+            room = room_res.scalar_one_or_none()
+            if room:
+                room.status = "vacant"
 
         payment_date = datetime.strptime(payment_data.payment_date, "%Y-%m-%d").date() if payment_data.payment_date else None
 

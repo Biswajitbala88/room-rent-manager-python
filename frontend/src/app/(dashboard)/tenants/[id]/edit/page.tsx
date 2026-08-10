@@ -32,6 +32,7 @@ export default function EditTenantPage() {
     is_water_charge: false,
     water_charge: '',
     is_advanced: false,
+    advance_amount: '',
     parent_id: '',
     manager_id: ''
   });
@@ -67,6 +68,7 @@ export default function EditTenantPage() {
           is_water_charge: tenant.is_water_charge,
           water_charge: tenant.water_charge.toString(),
           is_advanced: tenant.is_advanced,
+          advance_amount: tenant.advance_amount ? tenant.advance_amount.toString() : '',
           parent_id: tenant.parent_id.toString(),
           manager_id: tenant.manager_id ? tenant.manager_id.toString() : ''
         });
@@ -109,7 +111,17 @@ export default function EditTenantPage() {
         const selectedRoom = rooms.find(r => r.room_no === value && (currentUser?.user_type !== 'SA' || r.parent_id === parseInt(prev.parent_id)));
         if (selectedRoom) {
           updated.rent_amount = selectedRoom.rent_amount.toString();
+          if (updated.is_advanced) {
+            updated.advance_amount = selectedRoom.rent_amount.toString();
+          }
         }
+      }
+
+      if (name === 'is_advanced' && checked) {
+        updated.advance_amount = prev.rent_amount;
+      }
+      if (name === 'rent_amount' && prev.is_advanced) {
+        updated.advance_amount = value;
       }
       return updated;
     });
@@ -131,6 +143,7 @@ export default function EditTenantPage() {
         ...formData,
         rent_amount: parseFloat(formData.rent_amount),
         water_charge: formData.water_charge ? parseFloat(formData.water_charge) : 0,
+        advance_amount: formData.is_advanced && formData.advance_amount ? parseFloat(formData.advance_amount) : 0,
         start_date: formData.start_date || null,
         parent_id: currentUser?.user_type === 'SA' ? parseInt(formData.parent_id) : currentUser?.id,
         manager_id: formData.manager_id ? parseInt(formData.manager_id) : null
@@ -294,6 +307,12 @@ export default function EditTenantPage() {
               <input type="checkbox" id="is_advanced" name="is_advanced" checked={formData.is_advanced} onChange={handleChange} className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600" />
               <label htmlFor="is_advanced" className="ml-2 block text-sm text-gray-900 dark:text-gray-300">Advance Paid (Skips rent on closing invoice)</label>
             </div>
+            {formData.is_advanced && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Advance Amount (₹)</label>
+                <input type="number" step="0.01" name="advance_amount" value={formData.advance_amount} onChange={handleChange} className="mt-1 block w-full md:w-1/2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+              </div>
+            )}
           </div>
 
           {/* Media Section */}

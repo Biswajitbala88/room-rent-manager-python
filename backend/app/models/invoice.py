@@ -19,6 +19,8 @@ class Invoice(Base):
     total_amount = Column(Numeric(10, 2), nullable=False)
     received_amount = Column(Numeric(10, 2), default=0, nullable=False)
     is_excluded = Column(Boolean, default=False, nullable=False)
+    is_closer = Column(Boolean, default=False, nullable=False)
+    advance_applied = Column(Numeric(10, 2), default=0, nullable=False)
     status = Column(String(20), default="unpaid", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -55,10 +55,19 @@ class PDFService:
             ["Rent Amount", f"{invoice.rent_amount:.2f}"],
             [f"Electricity Charge ({invoice.electricity_units} units)", f"{invoice.electricity_charge:.2f}"],
             ["Water Charge", f"{invoice.water_charge:.2f}"],
+        ]
+        
+        if getattr(invoice, "advance_applied", 0) > 0:
+            breakdown_data.append(["Advance Applied", f"-{invoice.advance_applied:.2f}"])
+            
+        breakdown_data.extend([
             ["Total Amount", f"{invoice.total_amount:.2f}"],
             ["Received Amount", f"{invoice.received_amount:.2f}"],
             ["Due Amount", f"{(invoice.total_amount - invoice.received_amount):.2f}"]
-        ]
+        ])
+        
+        total_idx = len(breakdown_data) - 3
+        due_idx = len(breakdown_data) - 1
         
         t2 = Table(breakdown_data, colWidths=[4*inch, 2*inch])
         t2.setStyle(TableStyle([
@@ -69,8 +78,8 @@ class PDFService:
             ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
             ('BOTTOMPADDING', (0,0), (-1,0), 12),
             ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-            ('FONTNAME', (0,4), (-1,4), 'Helvetica-Bold'),
-            ('FONTNAME', (0,6), (-1,6), 'Helvetica-Bold')
+            ('FONTNAME', (0,total_idx), (-1,total_idx), 'Helvetica-Bold'),
+            ('FONTNAME', (0,due_idx), (-1,due_idx), 'Helvetica-Bold')
         ]))
         elements.append(t2)
         
