@@ -24,6 +24,14 @@ export default function TenantsPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedTenantId, setSelectedTenantId] = useState<number | null>(null);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterName, filterPhone, filterRoom, filterOwner]);
+
   const fetchTenants = async () => {
     try {
       const { data } = await api.get('/tenants');
@@ -83,6 +91,13 @@ export default function TenantsPage() {
     const matchesOwner = filterOwner === 'all' || tenant.parent_id?.toString() === filterOwner;
     return matchesName && matchesPhone && matchesRoom && matchesOwner;
   });
+
+  const totalItems = filteredTenants.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const paginatedTenants = filteredTenants.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   if (loading) return <div className="text-gray-900 dark:text-white">Loading tenants...</div>;
 
@@ -183,14 +198,14 @@ export default function TenantsPage() {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredTenants.length === 0 ? (
+              {paginatedTenants.length === 0 ? (
                 <tr>
                   <td colSpan={currentUser?.user_type === 'SA' ? 7 : 6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                     No tenants found matching the filters
                   </td>
                 </tr>
               ) : (
-                filteredTenants.map((tenant) => {
+                paginatedTenants.map((tenant) => {
                   const owner = users.find((u) => u.id === tenant.parent_id);
                   const manager = users.find((u) => u.id === tenant.manager_id);
                   return (
@@ -255,6 +270,53 @@ export default function TenantsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination controls */}
+        {totalItems > itemsPerPage && (
+          <div className="bg-white dark:bg-gray-800 px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between sm:px-6">
+            <div className="flex-1 flex justify-between sm:hidden">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-700 dark:text-gray-400">
+                  Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(currentPage * itemsPerPage, totalItems)}</span> of <span className="font-medium">{totalItems}</span> results
+                </p>
+              </div>
+              <div>
+                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center px-3 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="relative inline-flex items-center px-3 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </nav>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <ConfirmModal 

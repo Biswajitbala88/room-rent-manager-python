@@ -100,23 +100,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Sidebar */}
       <div 
-        className={`fixed inset-y-0 left-0 z-50 bg-gray-900 text-white transform transition-all duration-200 ease-in-out lg:relative lg:translate-x-0 
+        className={`fixed inset-y-0 left-0 z-50 bg-white dark:bg-gray-900 text-gray-900 dark:text-white transform transition-all duration-200 ease-in-out lg:relative lg:translate-x-0 border-r border-gray-200 dark:border-gray-800
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
           ${isCollapsed ? 'w-20' : 'w-64'} h-screen flex flex-col`}
       >
-        <div className="h-16 flex items-center justify-between px-4 bg-gray-950 font-bold text-lg border-b border-gray-800 flex-shrink-0">
-          {!isCollapsed && <span className="truncate">Room Rent Manager</span>}
+        <div className="h-16 flex items-center justify-between px-4 bg-gray-50 dark:bg-gray-950 font-bold text-lg border-b border-gray-200 dark:border-gray-800 flex-shrink-0">
+          {!isCollapsed && <span className="truncate text-gray-900 dark:text-white">Room Rent Manager</span>}
           <div className="flex items-center gap-2">
             <button 
               onClick={toggleSidebarCollapse}
-              className="hidden lg:flex p-1.5 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white"
+              className="hidden lg:flex p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
               title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
             >
               {isCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
             </button>
             <button 
               onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-1.5 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white cursor-pointer"
+              className="lg:hidden p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white cursor-pointer"
               title="Close Sidebar"
             >
               <X className="h-5 w-5" />
@@ -131,7 +131,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link
                 key={item.name}
                 href={item.href}
-                className={`flex items-center px-3 py-2.5 rounded-lg transition-colors ${isActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800'} ${isCollapsed ? 'justify-center' : ''}`}
+                className={`flex items-center px-3 py-2.5 rounded-lg transition-colors ${isActive ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'} ${isCollapsed ? 'justify-center' : ''}`}
                 title={isCollapsed ? item.name : undefined}
               >
                 <item.icon className={`h-5 w-5 ${isCollapsed ? '' : 'mr-3'}`} />
@@ -141,27 +141,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
-        <div className="p-3 border-t border-gray-800 bg-gray-900 flex-shrink-0">
+        <div className="p-3 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 flex-shrink-0">
           {/* Theme Toggle inside Sidebar */}
           <button
             onClick={toggleDarkMode}
-            className={`flex w-full items-center px-3 py-2 text-gray-300 hover:bg-gray-800 rounded-lg transition-colors mb-2 cursor-pointer ${isCollapsed ? 'justify-center' : ''}`}
+            className={`flex w-full items-center px-3 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors mb-2 cursor-pointer ${isCollapsed ? 'justify-center' : ''}`}
             title="Toggle Light/Dark Theme"
           >
-            {darkMode ? <Sun className="h-5 w-5 text-yellow-400" /> : <Moon className="h-5 w-5 text-blue-400" />}
+            {darkMode ? <Sun className="h-5 w-5 text-yellow-500" /> : <Moon className="h-5 w-5 text-blue-500" />}
             {!isCollapsed && <span className="ml-3">Theme</span>}
           </button>
 
           {!isCollapsed && (
-            <div className="flex flex-col mb-3 px-3 text-xs text-gray-400">
-              <span className="truncate font-medium">{user.name}</span>
-              <span className="text-[10px] text-gray-500">Role: {user.user_type}</span>
+            <div className="flex flex-col mb-3 px-3 text-xs text-gray-500 dark:text-gray-400">
+              <span className="truncate font-semibold text-gray-800 dark:text-gray-200">{user.name}</span>
+              <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">Role: {user.user_type === 'SA' ? 'Super Admin' : user.user_type === 'A' ? 'Owner Admin' : 'Manager'}</span>
             </div>
           )}
 
           <button
             onClick={logout}
-            className={`flex w-full items-center px-3 py-2 text-gray-300 hover:bg-gray-800 rounded-lg transition-colors cursor-pointer ${isCollapsed ? 'justify-center' : ''}`}
+            className={`flex w-full items-center px-3 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors cursor-pointer ${isCollapsed ? 'justify-center' : ''}`}
             title={isCollapsed ? "Sign Out" : undefined}
           >
             <LogOut className={`h-5 w-5 ${isCollapsed ? '' : 'mr-3'}`} />
@@ -205,7 +205,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {/* User profile info (Desktop only) */}
               <div className="hidden md:flex flex-col text-right text-xs">
                 <span className="font-semibold text-gray-900 dark:text-white">{user.name}</span>
-                <span className="text-[10px] text-gray-500 dark:text-gray-400">Role: {user.user_type}</span>
+                <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Role: {user.user_type === 'SA' ? 'Super Admin' : user.user_type === 'A' ? 'Owner Admin' : 'Manager'}</span>
               </div>
             </div>
           </div>

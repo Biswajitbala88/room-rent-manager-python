@@ -197,11 +197,18 @@ export default function EditTenantPage() {
   // Get available managers
   const availableManagers = users.filter((u: any) => {
     const isManager = u.user_type === 'M';
+    if (!isManager) return false;
+    
+    // Always include the currently assigned manager so the value shows up
+    if (formData.manager_id && u.id === parseInt(formData.manager_id)) {
+      return true;
+    }
+    
     if (currentUser?.user_type === 'SA') {
-      return isManager && formData.parent_id && u.parent_id === parseInt(formData.parent_id);
+      return !u.parent_id || (formData.parent_id && u.parent_id === parseInt(formData.parent_id));
     }
     if (currentUser?.user_type === 'A') {
-      return isManager && u.parent_id === currentUser.id;
+      return u.parent_id === currentUser.id;
     }
     return false;
   });
