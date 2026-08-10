@@ -4,13 +4,44 @@ import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
-import { LogIn } from 'lucide-react';
+import { LogIn, Key, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [isAccordionOpen, setIsAccordionOpen] = useState(false);
+
+  const demoAccounts = [
+    {
+      role: 'Super Admin',
+      email: 'superadmin@user.com',
+      password: '12345678',
+      color: 'bg-indigo-50/50 border-indigo-100 text-indigo-900 hover:bg-indigo-50 hover:border-indigo-200',
+      badgeColor: 'bg-indigo-100 text-indigo-800'
+    },
+    {
+      role: 'Admin',
+      email: 'admin@user.com',
+      password: '12345678',
+      color: 'bg-emerald-50/50 border-emerald-100 text-emerald-900 hover:bg-emerald-50 hover:border-emerald-200',
+      badgeColor: 'bg-emerald-100 text-emerald-800'
+    },
+    {
+      role: 'Manager',
+      email: 'manager@user.com',
+      password: '12345678',
+      color: 'bg-amber-50/50 border-amber-100 text-amber-900 hover:bg-amber-50 hover:border-amber-200',
+      badgeColor: 'bg-amber-100 text-amber-800'
+    }
+  ];
+
+  const handleFill = (emailVal: string, passwordVal: string) => {
+    setEmail(emailVal);
+    setPassword(passwordVal);
+    toast.success('Credentials filled!');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,6 +59,7 @@ export default function LoginPage() {
       
       await login(`Bearer ${data.access_token}`);
       toast.success('Successfully logged in!');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Failed to login');
     } finally {
@@ -84,10 +116,53 @@ export default function LoginPage() {
           
           <div className="text-sm text-center">
             <Link href="/register" className="font-medium text-blue-600 hover:text-blue-500">
-              Don't have an account? Register
+              {"Don't have an account? Register"}
             </Link>
           </div>
         </form>
+
+        {/* Accordion for Demo Accounts */}
+        <div className="mt-6 border-t border-gray-100 pt-6">
+          <button
+            type="button"
+            onClick={() => setIsAccordionOpen(!isAccordionOpen)}
+            className="w-full flex items-center justify-between py-2 text-sm font-medium text-gray-500 hover:text-gray-700 focus:outline-none transition-colors cursor-pointer"
+          >
+            <span className="flex items-center gap-2">
+              <Key className="h-4 w-4 text-blue-500" />
+              Demo Credentials (Click to Autofill)
+            </span>
+            {isAccordionOpen ? (
+              <ChevronUp className="h-4 w-4 text-gray-400" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-gray-400" />
+            )}
+          </button>
+          
+          {isAccordionOpen && (
+            <div className="mt-3 space-y-2 transition-all duration-300">
+              {demoAccounts.map((account) => (
+                <button
+                  key={account.role}
+                  type="button"
+                  onClick={() => handleFill(account.email, account.password)}
+                  className={`w-full text-left p-3 rounded-lg border text-xs flex flex-col gap-1 transition-all cursor-pointer ${account.color}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${account.badgeColor}`}>
+                      {account.role}
+                    </span>
+                    <span className="text-[10px] text-gray-500 font-medium">Click to fill</span>
+                  </div>
+                  <div className="font-mono mt-1 text-gray-700">
+                    <div>Email: <span className="font-semibold text-gray-900">{account.email}</span></div>
+                    <div>Pass: <span className="font-semibold text-gray-900">{account.password}</span></div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
