@@ -22,6 +22,24 @@ export default function UsersPage() {
     parent_id: ''
   });
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  const totalItems = users.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const paginatedUsers = users.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  useEffect(() => {
+    const totalPages = Math.ceil(users.length / itemsPerPage);
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [users, currentPage]);
+
   // Delete modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
@@ -153,12 +171,12 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {users.length === 0 ? (
+              {paginatedUsers.length === 0 ? (
                 <tr>
                   <td colSpan={currentUser?.user_type === 'SA' ? 4 : 3} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">No managed users found</td>
                 </tr>
               ) : (
-                users.map((item) => (
+                paginatedUsers.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="font-medium text-gray-900 dark:text-white">{item.name}</div>
@@ -167,7 +185,7 @@ export default function UsersPage() {
                       <div>{item.email}</div>
                       {item.user_type === 'M' && item.parent_id && (
                         <div className="text-xs text-gray-400">
-                          Parent Admin: {users.find(u => u.id === item.parent_id)?.name || `ID: ${item.parent_id}`}
+                          Parent Owner Admin: {users.find(u => u.id === item.parent_id)?.name || `ID: ${item.parent_id}`}
                         </div>
                       )}
                     </td>
@@ -179,7 +197,7 @@ export default function UsersPage() {
                           ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
                           : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                       }`}>
-                        {item.user_type === 'SA' ? 'Super Admin' : item.user_type === 'A' ? 'Admin' : 'Manager'}
+                        {item.user_type === 'SA' ? 'Super Admin' : item.user_type === 'A' ? 'Owner Admin' : 'Manager'}
                       </span>
                     </td>
                     {currentUser?.user_type === 'SA' && (
@@ -206,6 +224,53 @@ export default function UsersPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination controls */}
+        {totalItems > itemsPerPage && (
+          <div className="bg-white dark:bg-gray-800 px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between sm:px-6">
+            <div className="flex-1 flex justify-between sm:hidden">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-700 dark:text-gray-400">
+                  Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(currentPage * itemsPerPage, totalItems)}</span> of <span className="font-medium">{totalItems}</span> results
+                </p>
+              </div>
+              <div>
+                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center px-3 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-550 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="relative inline-flex items-center px-3 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-550 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </nav>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add/Edit Modal */}
@@ -257,21 +322,21 @@ export default function UsersPage() {
                   onChange={(e) => setFormData(prev => ({ ...prev, user_type: e.target.value }))}
                   className="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm"
                 >
-                  <option value="A">Admin</option>
+                  <option value="A">Owner Admin</option>
                   <option value="M">Manager</option>
                 </select>
               </div>
 
               {formData.user_type === 'M' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Parent Admin</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Parent Owner Admin</label>
                   <select 
                     value={formData.parent_id} 
                     onChange={(e) => setFormData(prev => ({ ...prev, parent_id: e.target.value }))}
                     className="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm"
                     required
                   >
-                    <option value="">-- Select Parent Admin --</option>
+                    <option value="">-- Select Parent Owner Admin --</option>
                     {users.filter(u => u.user_type === 'A').map(admin => (
                       <option key={admin.id} value={admin.id}>{admin.name} ({admin.email})</option>
                     ))}
