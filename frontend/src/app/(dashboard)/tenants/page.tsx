@@ -7,6 +7,7 @@ import { Plus, Trash2, Edit, Eye, Shield, Building, User as UserIcon } from 'luc
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import ConfirmModal from '@/components/ConfirmModal';
+import { TableRowsSkeleton } from '@/components/Skeleton';
 
 export default function TenantsPage() {
   const { user: currentUser } = useAuth();
@@ -87,10 +88,14 @@ export default function TenantsPage() {
   const filteredTenants = tenants.filter((tenant) => {
     const matchesName = tenant.name.toLowerCase().includes(filterName.toLowerCase());
     const matchesPhone = (tenant.phone || '').toLowerCase().includes(filterPhone.toLowerCase());
-    const matchesRoom = (tenant.room_no || '').toLowerCase().includes(filterRoom.toLowerCase());
+    const matchesRoom = filterRoom ? tenant.room_no === filterRoom : true;
     const matchesOwner = filterOwner === 'all' || tenant.parent_id?.toString() === filterOwner;
     return matchesName && matchesPhone && matchesRoom && matchesOwner;
   });
+
+  const roomOptions = Array.from(new Set(tenants.map((t) => t.room_no).filter(Boolean))).sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true })
+  );
 
   const totalItems = filteredTenants.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -98,8 +103,6 @@ export default function TenantsPage() {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
-
-  if (loading) return <div className="text-gray-900 dark:text-white">Loading tenants...</div>;
 
   return (
     <div className="space-y-6">
@@ -169,14 +172,17 @@ export default function TenantsPage() {
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Search Room</label>
-          <input 
-            type="text" 
-            placeholder="Search by room..." 
+          <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Filter by Room</label>
+          <select
             value={filterRoom}
             onChange={(e) => setFilterRoom(e.target.value)}
             className="w-full text-sm rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-          />
+          >
+            <option value="">All Rooms</option>
+            {roomOptions.map((room) => (
+              <option key={room} value={room}>Room {room}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -198,7 +204,9 @@ export default function TenantsPage() {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {paginatedTenants.length === 0 ? (
+              {loading ? (
+                <TableRowsSkeleton rows={8} columns={currentUser?.user_type === 'SA' ? 7 : 6} />
+              ) : paginatedTenants.length === 0 ? (
                 <tr>
                   <td colSpan={currentUser?.user_type === 'SA' ? 7 : 6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                     No tenants found matching the filters
@@ -209,7 +217,7 @@ export default function TenantsPage() {
                   const owner = users.find((u) => u.id === tenant.parent_id);
                   const manager = users.find((u) => u.id === tenant.manager_id);
                   return (
-                    <tr key={tenant.id} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                    <tr key={tenant.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="font-medium text-gray-900 dark:text-white">{tenant.name}</div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">{tenant.phone || 'No phone'}</div>

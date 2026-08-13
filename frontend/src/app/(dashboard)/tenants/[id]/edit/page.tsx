@@ -241,9 +241,13 @@ export default function EditTenantPage() {
                   className="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 >
                   <option value="">-- Select Owner Admin --</option>
-                  {users.filter(u => u.user_type === 'A').map(admin => (
-                    <option key={admin.id} value={admin.id}>{admin.name} ({admin.email})</option>
-                  ))}
+                  {users
+                    .filter(u => u.user_type === 'A' || u.id === parseInt(formData.parent_id))
+                    .map(admin => (
+                      <option key={admin.id} value={admin.id}>
+                        {admin.name} ({admin.email}){admin.user_type === 'SA' ? ' - Super Admin' : ''}
+                      </option>
+                    ))}
                 </select>
               </div>
             )}

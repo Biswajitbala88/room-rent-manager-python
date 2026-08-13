@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { Skeleton, TableRowsSkeleton } from '@/components/Skeleton';
 
 export default function ElectricityReportPage() {
   const [report, setReport] = useState<any>(null);
@@ -68,7 +69,16 @@ export default function ElectricityReportPage() {
         </div>
       </div>
 
-      {report && (
+      {loading && !report ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+              <Skeleton className="h-4 w-40 mb-3" />
+              <Skeleton className="h-8 w-24" />
+            </div>
+          ))}
+        </div>
+      ) : report && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
             <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Total Units Consumed</h3>
@@ -95,16 +105,14 @@ export default function ElectricityReportPage() {
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {loading ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">Loading...</td>
-                </tr>
+                <TableRowsSkeleton rows={8} columns={5} />
               ) : !report || report.items.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">No electricity data found matching filters</td>
                 </tr>
               ) : (
                 report.items.map((item: any) => (
-                  <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                  <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                       {format(new Date(`${item.month}-01`), 'MMMM yyyy')}
                     </td>
