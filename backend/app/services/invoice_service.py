@@ -40,50 +40,97 @@ class InvoiceService:
         return result.scalar_one_or_none()
 
     @staticmethod
+    async def _get_chained_previous_reading(db: AsyncSession, parent_id: int, room_no: str, month: str, exclude_invoice_id: Optional[int] = None) -> int:
+        """The previous reading for a room's invoice is always the current reading of that
+        room's most recent invoice before this month (0 if this is the room's first invoice)."""
+        if not room_no:
+            return 0
+        query = select(Invoice.current_reading).join(Tenant, Invoice.tenant_id == Tenant.id).where(
+            Invoice.room_no == room_no,
+            Tenant.parent_id == parent_id,
+            Invoice.month < month
+        )
+        if exclude_invoice_id is not None:
+            query = query.where(Invoice.id != exclude_invoice_id)
+        query = query.order_by(Invoice.month.desc()).limit(1)
+        result = await db.execute(query)
+        val = result.scalar_one_or_none()
+        return val if val is not None else 0
+
+    @staticmethod
+    async def _rechain_room_invoices(db: AsyncSession, parent_id: int, room_no: str) -> None:
+        """Recompute previous_reading/electricity_units/electricity_charge/total_amount/status for
+        every invoice of a room, in month order, so each invoice's previous reading always equals
+        the prior month's current reading. Needed after any create/edit/delete that could shift the chain."""
+        if not room_no:
+            return
+        query = select(Invoice).join(Tenant, Invoice.tenant_id == Tenant.id).where(
+            Invoice.room_no == room_no,
+            Tenant.parent_id == parent_id
+        ).order_by(Invoice.month.asc())
+        result = await db.execute(query)
+        invoices = result.scalars().all()
+
+        prev_reading = 0
+        for inv in invoices:
+            inv.previous_reading = prev_reading
+            units = max(0, inv.current_reading - prev_reading)
+            inv.electricity_units = units
+            inv.electricity_charge = Decimal(units) * Decimal(str(settings.ELECTRIC_RATE))
+            inv.total_amount = inv.rent_amount + inv.electricity_charge + inv.water_charge - inv.advance_applied
+            inv.status = "paid" if inv.total_amount <= inv.received_amount else "unpaid"
+            prev_reading = inv.current_reading
+
+        await db.commit()
+
+    @staticmethod
     async def create_invoice(db: AsyncSession, invoice_data: InvoiceCreate, current_user: User) -> Invoice:
         tenant_query = select(Tenant).where(Tenant.id == invoice_data.tenant_id)
         if current_user.user_type == "M":
             tenant_query = tenant_query.where(Tenant.manager_id == current_user.id)
         elif current_user.user_type == "A":
             tenant_query = tenant_query.where(Tenant.parent_id == current_user.id)
-        
+
         tenant = (await db.execute(tenant_query)).scalar_one_or_none()
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found or access denied")
 
-        electricity_charge = Decimal(str(invoice_data.electricity_units)) * Decimal(str(settings.ELECTRIC_RATE))
         water_charge = Decimal(str(invoice_data.water_charge))
         received_amount = Decimal(str(invoice_data.received_amount))
-        
+
         rent_amount = tenant.rent_amount
         advance_applied = Decimal("0.00")
-        
+
         if invoice_data.is_closer:
             if tenant.is_advanced or tenant.advance_amount > 0:
                 advance_applied = Decimal(str(tenant.advance_amount)) if tenant.advance_amount > 0 else Decimal(str(tenant.rent_amount))
 
-        total_amount = rent_amount + electricity_charge + water_charge - advance_applied
-        status = "paid" if total_amount <= received_amount else "unpaid"
-
+        # previous_reading/electricity_units/electricity_charge/total_amount/status are placeholders here;
+        # _rechain_room_invoices below derives them from the chained meter readings and is authoritative.
         new_invoice = Invoice(
             tenant_id=tenant.id,
             room_no=tenant.room_no,
             month=invoice_data.month,
-            electricity_units=invoice_data.electricity_units,
-            previous_reading=invoice_data.previous_reading,
+            electricity_units=0,
+            previous_reading=0,
             current_reading=invoice_data.current_reading,
-            electricity_charge=electricity_charge,
+            electricity_charge=Decimal("0.00"),
             water_charge=water_charge,
             rent_amount=rent_amount,
-            total_amount=total_amount,
+            total_amount=rent_amount + water_charge - advance_applied,
             received_amount=received_amount,
             is_excluded=invoice_data.is_excluded,
             is_closer=invoice_data.is_closer,
             advance_applied=advance_applied,
-            status=status
+            status="unpaid"
         )
 
-        if invoice_data.is_closer and status == "paid":
+        db.add(new_invoice)
+        await db.commit()
+
+        await InvoiceService._rechain_room_invoices(db, tenant.parent_id, tenant.room_no)
+
+        if new_invoice.is_closer and new_invoice.status == "paid":
             tenant.status = "close"
             # Set room to vacant
             from app.models.room import Room
@@ -91,9 +138,7 @@ class InvoiceService:
             room = room_res.scalar_one_or_none()
             if room:
                 room.status = "vacant"
-
-        db.add(new_invoice)
-        await db.commit()
+            await db.commit()
 
         if invoice_data.received_amount > 0:
             tx = Transaction(
@@ -105,6 +150,7 @@ class InvoiceService:
             db.add(tx)
             await db.commit()
 
+        await db.refresh(new_invoice)
         await new_invoice.awaitable_attrs.tenant
         return new_invoice
 
@@ -123,19 +169,18 @@ class InvoiceService:
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found or access denied")
 
+        old_parent_id = invoice.tenant.parent_id if invoice.tenant else tenant.parent_id
+        old_room_no = invoice.room_no
+
         invoice.tenant_id = invoice_data.tenant_id
         invoice.room_no = tenant.room_no
         invoice.rent_amount = tenant.rent_amount
         invoice.month = invoice_data.month
-        invoice.electricity_units = invoice_data.electricity_units
-        invoice.previous_reading = invoice_data.previous_reading
         invoice.current_reading = invoice_data.current_reading
         invoice.is_excluded = invoice_data.is_excluded
         invoice.received_amount = Decimal(str(invoice_data.received_amount))
-        
-        invoice.electricity_charge = Decimal(str(invoice.electricity_units)) * Decimal(str(settings.ELECTRIC_RATE))
         invoice.water_charge = Decimal(str(invoice_data.water_charge))
-        
+
         advance_applied = Decimal("0.00")
         if invoice_data.is_closer:
             if tenant.is_advanced or tenant.advance_amount > 0:
@@ -143,8 +188,14 @@ class InvoiceService:
 
         invoice.is_closer = invoice_data.is_closer
         invoice.advance_applied = advance_applied
-        invoice.total_amount = invoice.rent_amount + invoice.electricity_charge + invoice.water_charge - invoice.advance_applied
-        invoice.status = "paid" if invoice.total_amount <= Decimal(str(invoice_data.received_amount)) else "unpaid"
+
+        await db.commit()
+
+        # Rechain the (possibly new) room, and the old room too if the tenant/room changed,
+        # so previous_reading/electricity_units/total_amount stay consistent everywhere.
+        if old_room_no and (old_room_no != tenant.room_no or old_parent_id != tenant.parent_id):
+            await InvoiceService._rechain_room_invoices(db, old_parent_id, old_room_no)
+        await InvoiceService._rechain_room_invoices(db, tenant.parent_id, tenant.room_no)
 
         if invoice.is_closer and invoice.status == "paid":
             tenant.status = "close"
@@ -154,8 +205,8 @@ class InvoiceService:
             room = room_res.scalar_one_or_none()
             if room:
                 room.status = "vacant"
+            await db.commit()
 
-        await db.commit()
         await db.refresh(invoice)
         await invoice.awaitable_attrs.tenant
         return invoice
@@ -165,8 +216,16 @@ class InvoiceService:
         invoice = await InvoiceService.get_invoice(db, invoice_id, current_user)
         if not invoice:
             raise HTTPException(status_code=404, detail="Invoice not found")
+
+        parent_id = invoice.tenant.parent_id if invoice.tenant else None
+        room_no = invoice.room_no
+
         await db.delete(invoice)
         await db.commit()
+
+        if parent_id and room_no:
+            await InvoiceService._rechain_room_invoices(db, parent_id, room_no)
+
         return True
 
     @staticmethod
@@ -213,13 +272,16 @@ class InvoiceService:
         return invoice
 
     @staticmethod
-    async def get_last_units(db: AsyncSession, room_no: str, month: str, current_user: User) -> int:
+    async def get_last_units(db: AsyncSession, room_no: str, month: str, current_user: User, exclude_invoice_id: Optional[int] = None) -> int:
         owner_id = current_user.parent_id if current_user.user_type == "M" else current_user.id
         query = select(Invoice.current_reading).join(Tenant).where(Invoice.room_no == room_no)
         if current_user.user_type != "SA":
             query = query.where(Tenant.parent_id == owner_id)
-        
-        query = query.where(Invoice.month < month).order_by(Invoice.month.desc()).limit(1)
+
+        query = query.where(Invoice.month < month)
+        if exclude_invoice_id is not None:
+            query = query.where(Invoice.id != exclude_invoice_id)
+        query = query.order_by(Invoice.month.desc()).limit(1)
         result = await db.execute(query)
         val = result.scalar_one_or_none()
         return val if val else 0

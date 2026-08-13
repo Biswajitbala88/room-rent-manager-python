@@ -89,7 +89,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex text-gray-900 dark:text-gray-100 transition-colors duration-150">
+    <div className="h-screen overflow-hidden bg-gray-100 dark:bg-gray-900 flex text-gray-900 dark:text-gray-100 transition-colors duration-150">
       {/* Mobile Sidebar Backdrop */}
       {sidebarOpen && (
         <div 

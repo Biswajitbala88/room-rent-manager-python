@@ -64,10 +64,11 @@ async def add_payment(
 async def get_last_units(
     room_no: str,
     month: str,
+    exclude_invoice_id: int | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    units = await InvoiceService.get_last_units(db, room_no, month, current_user)
+    units = await InvoiceService.get_last_units(db, room_no, month, current_user, exclude_invoice_id)
     return {"last_units": units}
 
 @router.get("/due/{tenant_id}", response_model=List[InvoiceResponse])

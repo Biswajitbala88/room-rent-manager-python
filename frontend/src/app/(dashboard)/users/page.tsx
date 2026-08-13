@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Plus, Edit, Trash2, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfirmModal from '@/components/ConfirmModal';
+import { TableRowsSkeleton } from '@/components/Skeleton';
 
 export default function UsersPage() {
   const { user: currentUser } = useAuth();
@@ -139,8 +140,6 @@ export default function UsersPage() {
     }
   };
 
-  if (loading) return <div className="text-gray-900 dark:text-white">Loading users...</div>;
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -171,13 +170,15 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {paginatedUsers.length === 0 ? (
+              {loading ? (
+                <TableRowsSkeleton rows={8} columns={currentUser?.user_type === 'SA' ? 4 : 3} />
+              ) : paginatedUsers.length === 0 ? (
                 <tr>
                   <td colSpan={currentUser?.user_type === 'SA' ? 4 : 3} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">No managed users found</td>
                 </tr>
               ) : (
                 paginatedUsers.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                  <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="font-medium text-gray-900 dark:text-white">{item.name}</div>
                     </td>

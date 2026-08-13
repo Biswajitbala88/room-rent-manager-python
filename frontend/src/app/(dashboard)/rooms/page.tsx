@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Plus, Edit, Trash2, DoorOpen, CheckCircle, XCircle, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfirmModal from '@/components/ConfirmModal';
+import { CardsSkeleton } from '@/components/Skeleton';
 
 export default function RoomsPage() {
   const { user: currentUser } = useAuth();
@@ -151,8 +152,6 @@ export default function RoomsPage() {
     currentPage * itemsPerPage
   );
 
-  if (loading) return <div className="text-gray-900 dark:text-white">Loading rooms...</div>;
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -201,7 +200,9 @@ export default function RoomsPage() {
 
       {/* Rooms Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {paginatedRooms.length === 0 ? (
+        {loading ? (
+          <CardsSkeleton count={6} />
+        ) : paginatedRooms.length === 0 ? (
           <p className="text-gray-500 dark:text-gray-400 col-span-full text-center py-10">No rooms found matching filters.</p>
         ) : (
           paginatedRooms.map((room) => {
@@ -230,7 +231,7 @@ export default function RoomsPage() {
                   </div>
 
                   {currentUser?.user_type === 'SA' && (
-                    <div className="mb-3 text-xs bg-gray-50 dark:bg-gray-750 px-2.5 py-1.5 rounded-lg text-gray-600 dark:text-gray-300 flex items-center justify-between">
+                    <div className="mb-3 text-xs bg-gray-50 dark:bg-gray-700/60 px-2.5 py-1.5 rounded-lg text-gray-600 dark:text-gray-300 flex items-center justify-between">
                       <span className="font-medium">Owner / Admin:</span>
                       <span className="font-semibold text-blue-600 dark:text-blue-400">
                         {owner ? `${owner.name}` : `User #${room.parent_id}`}
@@ -243,7 +244,7 @@ export default function RoomsPage() {
                   </p>
                 </div>
 
-                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-750">
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-700">
                   <button 
                     onClick={() => handleOpenEdit(room)}
                     className="p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"

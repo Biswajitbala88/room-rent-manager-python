@@ -6,6 +6,7 @@ import { Plus, Download, Trash2, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import ConfirmModal from '@/components/ConfirmModal';
+import { TableRowsSkeleton } from '@/components/Skeleton';
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -84,9 +85,13 @@ export default function InvoicesPage() {
   const filteredInvoices = invoices.filter((invoice) => {
     const matchesStatus = filterStatus === 'all' ? true : invoice.status === filterStatus;
     const matchesMonth = filterMonth ? invoice.month === filterMonth : true;
-    const matchesRoom = filterRoom ? (invoice.room_no || '').toLowerCase().includes(filterRoom.toLowerCase()) : true;
+    const matchesRoom = filterRoom ? (invoice.room_no || invoice.tenant?.room_no) === filterRoom : true;
     return matchesStatus && matchesMonth && matchesRoom;
   });
+
+  const roomOptions = Array.from(
+    new Set(invoices.map((invoice) => invoice.room_no || invoice.tenant?.room_no).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
   const totalItems = filteredInvoices.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -94,8 +99,6 @@ export default function InvoicesPage() {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
-
-  if (loading) return <div className="text-gray-900 dark:text-white">Loading invoices...</div>;
 
   return (
     <div className="space-y-6">
@@ -135,13 +138,16 @@ export default function InvoicesPage() {
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Room</label>
-          <input 
-            type="text" 
-            placeholder="Room number..."
+          <select
             value={filterRoom}
             onChange={(e) => setFilterRoom(e.target.value)}
             className="w-full text-sm rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-          />
+          >
+            <option value="">All Rooms</option>
+            {roomOptions.map((room) => (
+              <option key={room} value={room}>Room {room}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -160,18 +166,20 @@ export default function InvoicesPage() {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {paginatedInvoices.length === 0 ? (
+              {loading ? (
+                <TableRowsSkeleton rows={8} columns={6} />
+              ) : paginatedInvoices.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">No invoices found</td>
                 </tr>
               ) : (
                 paginatedInvoices.map((invoice) => (
-                  <tr key={invoice.id} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                  <tr key={invoice.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                       {format(new Date(`${invoice.month}-01`), 'MMMM yyyy')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">Room {invoice.room_no}</div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">Room {invoice.room_no || invoice.tenant?.room_no || 'N/A'}</div>
                       {invoice.tenant && <div className="text-xs text-gray-500 dark:text-gray-400">{invoice.tenant.name}</div>}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">

@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { CreditCard, ArrowRight, CheckCircle } from 'lucide-react';
+import { Skeleton } from '@/components/Skeleton';
 
 export default function DashboardPage() {
   const [summary, setSummary] = useState<any>(null);
@@ -147,7 +148,15 @@ export default function DashboardPage() {
           </div>
         </div>
       ) : (
-        <div className="text-gray-500 dark:text-gray-400">Loading summary...</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
+              <Skeleton className="h-4 w-28 mb-3" />
+              <Skeleton className="h-8 w-20 mb-2" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+          ))}
+        </div>
       )}
 
       {/* Quick Action Payment Collection Tool */}
@@ -167,7 +176,20 @@ export default function DashboardPage() {
           </select>
         </div>
 
-        {loadingDue && <div className="text-sm text-gray-500 dark:text-gray-400">Loading due invoices...</div>}
+        {loadingDue && (
+          <div className="space-y-4">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-48" />
+                  <Skeleton className="h-3 w-28" />
+                </div>
+                <Skeleton className="h-9 w-40" />
+              </div>
+            ))}
+          </div>
+        )}
 
         {!loadingDue && selectedTenantId && dueInvoices.length === 0 && (
           <div className="flex items-center gap-2 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">

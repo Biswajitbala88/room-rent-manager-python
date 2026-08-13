@@ -12,7 +12,10 @@ export default function EditInvoicePage() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [tenants, setTenants] = useState<any[]>([]);
-  
+  // true = don't auto-overwrite Received Amount (it holds a real recorded payment until the
+  // tenant is reassigned or the user clicks "Set to Payable Total")
+  const [receivedTouched, setReceivedTouched] = useState(true);
+
   const [formData, setFormData] = useState({
     tenant_id: '',
     month: '',
@@ -59,13 +62,58 @@ export default function EditInvoicePage() {
     fetchData();
   }, [invoiceId, router]);
 
+  // Previous reading is always derived from the room's last invoice before this month
+  // (chained: this month's previous = last month's current), excluding this invoice itself.
+  const fetchPreviousReading = async (tenantId: string, month: string) => {
+    const selectedTenant = tenants.find(t => t.id === parseInt(tenantId));
+    if (!selectedTenant) return;
+    try {
+      const { data } = await api.get(`/invoices/last-units/${selectedTenant.room_no}/${month}`, {
+        params: { exclude_invoice_id: invoiceId }
+      });
+      const lastReading = data.last_units || 0;
+      setFormData(prev => {
+        const units = Math.max(0, parseFloat(prev.current_reading) - lastReading) || 0;
+        return {
+          ...prev,
+          previous_reading: lastReading.toString(),
+          electricity_units: units.toString(),
+          water_charge: selectedTenant.is_water_charge ? selectedTenant.water_charge.toString() : '0'
+        };
+      });
+    } catch (error) {
+      console.error("Failed to fetch last units");
+    }
+  };
+
+  const handleTenantChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const tenant_id = e.target.value;
+    setFormData(prev => ({ ...prev, tenant_id }));
+    setReceivedTouched(false);
+    if (tenant_id && formData.month) {
+      fetchPreviousReading(tenant_id, formData.month);
+    }
+  };
+
+  // Re-fetch the chained previous reading whenever the billing month changes too
+  useEffect(() => {
+    if (!fetching && formData.tenant_id && formData.month) {
+      fetchPreviousReading(formData.tenant_id, formData.month);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.month, tenants]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
 
+    if (name === 'received_amount') {
+      setReceivedTouched(true);
+    }
+
     setFormData(prev => {
       let updatedVal: any = type === 'checkbox' ? checked : value;
-      
+
       const newFormData = {
         ...prev,
         [name]: updatedVal
@@ -80,6 +128,29 @@ export default function EditInvoicePage() {
 
       return newFormData;
     });
+  };
+
+  const selectedTenant = tenants.find(t => t.id === parseInt(formData.tenant_id));
+  const previewRent = selectedTenant?.rent_amount || 0;
+  const previewElectricity = (parseFloat(formData.electricity_units) || 0) * 10;
+  const previewWater = parseFloat(formData.water_charge) || 0;
+  const previewAdvanceApplied = selectedTenant && formData.is_closer && (selectedTenant.is_advanced || selectedTenant.advance_amount > 0)
+    ? (selectedTenant.advance_amount > 0 ? selectedTenant.advance_amount : selectedTenant.rent_amount)
+    : 0;
+  const payableTotal = selectedTenant ? previewRent + previewElectricity + previewWater - previewAdvanceApplied : 0;
+
+  // Default Received Amount to the Payable Total (full payment) only when it isn't
+  // already holding a real recorded payment (see receivedTouched above)
+  useEffect(() => {
+    if (!receivedTouched && selectedTenant) {
+      setFormData(prev => ({ ...prev, received_amount: payableTotal.toFixed(2) }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payableTotal, selectedTenant?.id, receivedTouched]);
+
+  const handleSetFullAmount = () => {
+    setFormData(prev => ({ ...prev, received_amount: payableTotal.toFixed(2) }));
+    setReceivedTouched(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -121,7 +192,7 @@ export default function EditInvoicePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tenant / Room</label>
-              <select name="tenant_id" required value={formData.tenant_id} onChange={handleChange} className="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500">
+              <select name="tenant_id" required value={formData.tenant_id} onChange={handleTenantChange} className="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 {tenants.map(t => (
                   <option key={t.id} value={t.id}>{t.name} (Room {t.room_no})</option>
                 ))}
@@ -133,7 +204,8 @@ export default function EditInvoicePage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Previous Meter Reading</label>
-              <input type="number" name="previous_reading" required min="0" value={formData.previous_reading} onChange={handleChange} className="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+              <input type="number" name="previous_reading" disabled value={formData.previous_reading} className="mt-1 block w-full rounded-lg border-gray-350 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 dark:text-gray-350 shadow-sm font-semibold cursor-not-allowed" />
+              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Auto-derived from this room's last invoice</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Current Meter Reading</label>
@@ -148,7 +220,14 @@ export default function EditInvoicePage() {
               <input type="number" step="0.01" name="water_charge" required value={formData.water_charge} onChange={handleChange} className="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Received Amount (₹)</label>
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Received Amount (₹)</label>
+                {selectedTenant && (
+                  <button type="button" onClick={handleSetFullAmount} className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                    Set to Payable Total
+                  </button>
+                )}
+              </div>
               <input type="number" step="0.01" name="received_amount" min="0" value={formData.received_amount} onChange={handleChange} className="mt-1 block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500" />
             </div>
           </div>
@@ -164,48 +243,35 @@ export default function EditInvoicePage() {
             </div>
           </div>
 
-          {(() => {
-            const selectedTenant = tenants.find(t => t.id === parseInt(formData.tenant_id));
-            if (!selectedTenant) return null;
-            
-            const rent = selectedTenant.rent_amount;
-            const electricity = (parseFloat(formData.electricity_units) || 0) * 10;
-            const water = parseFloat(formData.water_charge) || 0;
-            const advanceApplied = formData.is_closer && (selectedTenant.is_advanced || selectedTenant.advance_amount > 0) 
-              ? (selectedTenant.advance_amount > 0 ? selectedTenant.advance_amount : selectedTenant.rent_amount) 
-              : 0;
-            const total = rent + electricity + water - advanceApplied;
+          {selectedTenant && (
+            <div className="p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-gray-100 dark:border-gray-700 space-y-2">
+              <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Invoice Summary Preview</h3>
+              <div className="grid grid-cols-2 gap-y-1.5 text-xs text-gray-600 dark:text-gray-400">
+                <span>Room Rent:</span>
+                <span className="text-right font-medium text-gray-800 dark:text-gray-200">₹{previewRent.toFixed(2)}</span>
 
-            return (
-              <div className="p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-gray-100 dark:border-gray-700 space-y-2">
-                <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Invoice Summary Preview</h3>
-                <div className="grid grid-cols-2 gap-y-1.5 text-xs text-gray-600 dark:text-gray-400">
-                  <span>Room Rent:</span>
-                  <span className="text-right font-medium text-gray-800 dark:text-gray-200">₹{rent.toFixed(2)}</span>
-                  
-                  <span>Electricity ({parseFloat(formData.electricity_units) || 0} units @ ₹10):</span>
-                  <span className="text-right font-medium text-gray-800 dark:text-gray-200">₹{electricity.toFixed(2)}</span>
-                  
-                  <span>Water Charge:</span>
-                  <span className="text-right font-medium text-gray-800 dark:text-gray-200">₹{water.toFixed(2)}</span>
-                  
-                  {advanceApplied > 0 && (
-                    <>
-                      <span className="text-red-500 font-semibold">Advance Adjusted:</span>
-                      <span className="text-right font-semibold text-red-500">-₹{advanceApplied.toFixed(2)}</span>
-                    </>
-                  )}
-                  
-                  <div className="col-span-2 border-t border-dashed border-gray-200 dark:border-gray-650 my-1"></div>
-                  
-                  <span className="text-sm font-bold text-gray-800 dark:text-gray-150">Payable Total:</span>
-                  <span className="text-right text-sm font-bold text-blue-600 dark:text-blue-400">
-                    ₹{total.toFixed(2)}
-                  </span>
-                </div>
+                <span>Electricity ({parseFloat(formData.electricity_units) || 0} units @ ₹10):</span>
+                <span className="text-right font-medium text-gray-800 dark:text-gray-200">₹{previewElectricity.toFixed(2)}</span>
+
+                <span>Water Charge:</span>
+                <span className="text-right font-medium text-gray-800 dark:text-gray-200">₹{previewWater.toFixed(2)}</span>
+
+                {previewAdvanceApplied > 0 && (
+                  <>
+                    <span className="text-red-500 font-semibold">Advance Adjusted:</span>
+                    <span className="text-right font-semibold text-red-500">-₹{previewAdvanceApplied.toFixed(2)}</span>
+                  </>
+                )}
+
+                <div className="col-span-2 border-t border-dashed border-gray-200 dark:border-gray-650 my-1"></div>
+
+                <span className="text-sm font-bold text-gray-800 dark:text-gray-150">Payable Total:</span>
+                <span className="text-right text-sm font-bold text-blue-600 dark:text-blue-400">
+                  ₹{payableTotal.toFixed(2)}
+                </span>
               </div>
-            );
-          })()}
+            </div>
+          )}
           
           <div className="pt-6 flex justify-end gap-3 border-t border-gray-100 dark:border-gray-700">
             <button type="button" onClick={() => router.push('/invoices')} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">Cancel</button>
