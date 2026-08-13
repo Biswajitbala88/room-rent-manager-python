@@ -1,12 +1,15 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
 import toast from 'react-hot-toast';
+import { RefreshCw } from 'lucide-react';
+
+const SYNC_ENABLED = process.env.NEXT_PUBLIC_ENABLE_SYNC === 'true';
 
 export default function ProfilePage() {
   const { user, fetchUser } = useAuth();
-  
+
   const [profileData, setProfileData] = useState({
     name: user?.name || '',
     email: user?.email || '',
@@ -20,6 +23,42 @@ export default function ProfilePage() {
 
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [loadingPassword, setLoadingPassword] = useState(false);
+
+  const showSync = SYNC_ENABLED && user?.user_type === 'SA';
+  const [syncing, setSyncing] = useState(false);
+  const [syncHistory, setSyncHistory] = useState<any[]>([]);
+
+  const fetchSyncHistory = async () => {
+    try {
+      const { data } = await api.get('/sync/history');
+      setSyncHistory(data);
+    } catch (error) {
+      // Sync endpoints are only reachable in local/dev; a failure here is expected in prod.
+    }
+  };
+
+  useEffect(() => {
+    if (showSync) {
+      fetchSyncHistory();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSync]);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const { data } = await api.post('/sync/run');
+      const summaryText = Object.entries(data.summary || {})
+        .map(([table, count]) => `${table}: ${count}`)
+        .join(', ');
+      toast.success(`Sync complete — ${summaryText}`);
+      fetchSyncHistory();
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Sync failed');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,6 +183,55 @@ export default function ProfilePage() {
           </form>
         </div>
       </div>
+
+      {showSync && (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Developer Tools</h2>
+          <p className="text-sm text-gray-500 mb-6">
+            Copy data from the remote/production database into this local database for testing.
+            This never writes to the remote database, and running it repeatedly is safe.
+          </p>
+          <button
+            type="button"
+            onClick={handleSync}
+            disabled={syncing}
+            className="flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync Data from Remote'}
+          </button>
+
+          {syncHistory.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">Recent Syncs</h3>
+              <div className="space-y-2">
+                {syncHistory.map((log) => (
+                  <div key={log.id} className="flex items-center justify-between text-sm border border-gray-100 rounded-lg px-3 py-2">
+                    <div>
+                      <span className={`font-medium ${log.status === 'success' ? 'text-green-600' : log.status === 'failed' ? 'text-red-600' : 'text-gray-500'}`}>
+                        {log.status}
+                      </span>
+                      <span className="text-gray-400 ml-2">
+                        {new Date(log.started_at).toLocaleString()}
+                      </span>
+                    </div>
+                    {log.summary && (
+                      <span className="text-gray-500 text-xs">
+                        {Object.entries(log.summary).map(([table, count]) => `${table}: ${count}`).join(', ')}
+                      </span>
+                    )}
+                    {log.error_message && (
+                      <span className="text-red-500 text-xs truncate max-w-xs" title={log.error_message}>
+                        {log.error_message}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
