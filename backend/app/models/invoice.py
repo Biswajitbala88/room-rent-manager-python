@@ -8,6 +8,7 @@ class Invoice(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    room_id = Column(Integer, ForeignKey("rooms.id"), nullable=True, index=True)
     room_no = Column(String(50), nullable=True)
     month = Column(String(7), nullable=False) # YYYY-MM
     electricity_units = Column(Integer, default=0, nullable=False)

@@ -95,6 +95,10 @@ class InvoiceService:
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found or access denied")
 
+        from app.models.room import Room
+        room_res = await db.execute(select(Room).where(Room.room_no == tenant.room_no, Room.parent_id == tenant.parent_id))
+        room = room_res.scalar_one_or_none()
+
         water_charge = Decimal(str(invoice_data.water_charge))
         received_amount = Decimal(str(invoice_data.received_amount))
 
@@ -109,6 +113,7 @@ class InvoiceService:
         # _rechain_room_invoices below derives them from the chained meter readings and is authoritative.
         new_invoice = Invoice(
             tenant_id=tenant.id,
+            room_id=room.id if room else None,
             room_no=tenant.room_no,
             month=invoice_data.month,
             electricity_units=0,
@@ -132,12 +137,8 @@ class InvoiceService:
 
         if new_invoice.is_closer and new_invoice.status == "paid":
             tenant.status = "close"
-            # Set room to vacant
-            from app.models.room import Room
-            room_res = await db.execute(select(Room).where(Room.room_no == tenant.room_no, Room.parent_id == tenant.parent_id))
-            room = room_res.scalar_one_or_none()
             if room:
-                room.status = "vacant"
+                room.status = "vacant"  # Set room to vacant
             await db.commit()
 
         if invoice_data.received_amount > 0:
@@ -172,7 +173,12 @@ class InvoiceService:
         old_parent_id = invoice.tenant.parent_id if invoice.tenant else tenant.parent_id
         old_room_no = invoice.room_no
 
+        from app.models.room import Room
+        room_res = await db.execute(select(Room).where(Room.room_no == tenant.room_no, Room.parent_id == tenant.parent_id))
+        room = room_res.scalar_one_or_none()
+
         invoice.tenant_id = invoice_data.tenant_id
+        invoice.room_id = room.id if room else None
         invoice.room_no = tenant.room_no
         invoice.rent_amount = tenant.rent_amount
         invoice.month = invoice_data.month
@@ -199,12 +205,8 @@ class InvoiceService:
 
         if invoice.is_closer and invoice.status == "paid":
             tenant.status = "close"
-            # Set room to vacant
-            from app.models.room import Room
-            room_res = await db.execute(select(Room).where(Room.room_no == tenant.room_no, Room.parent_id == tenant.parent_id))
-            room = room_res.scalar_one_or_none()
             if room:
-                room.status = "vacant"
+                room.status = "vacant"  # Set room to vacant
             await db.commit()
 
         await db.refresh(invoice)
