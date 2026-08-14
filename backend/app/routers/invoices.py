@@ -1,12 +1,15 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Response
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.user import User
 from app.models.tenant import Tenant
 from app.dependencies import get_current_user
 from app.schemas.invoice import InvoiceResponse, InvoiceCreate, InvoiceUpdate, AddPayment
+from app.schemas.bulk_invoice import BulkInvoiceCreateRequest, BulkInvoiceOperationResponse
 from app.services.invoice_service import InvoiceService
+from app.services.bulk_invoice_service import BulkInvoiceService
 from app.services.pdf_service import PDFService
 
 router = APIRouter(prefix="/api/invoices", tags=["invoices"])
@@ -21,7 +24,42 @@ async def create_invoice(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    return await InvoiceService.create_invoice(db, invoice_data, current_user)
+    try:
+        return await InvoiceService.create_invoice(db, invoice_data, current_user)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail="An invoice already exists for this tenant and month")
+
+# Bulk routes are declared before /{invoice_id} so "bulk" is never accidentally
+# considered for that int-typed path parameter.
+@router.post("/bulk", response_model=BulkInvoiceOperationResponse, status_code=status.HTTP_201_CREATED)
+async def create_bulk_invoices(
+    request: BulkInvoiceCreateRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    operation = await BulkInvoiceService.create_operation(db, current_user, request.month, request.rooms)
+    background_tasks.add_task(BulkInvoiceService.process_operation, operation.id, current_user.id)
+    return operation
+
+@router.get("/bulk", response_model=List[BulkInvoiceOperationResponse])
+async def list_bulk_invoice_operations(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return await BulkInvoiceService.list_operations(db, current_user)
+
+@router.get("/bulk/{operation_id}", response_model=BulkInvoiceOperationResponse)
+async def get_bulk_invoice_operation(
+    operation_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    operation = await BulkInvoiceService.get_operation(db, operation_id, current_user)
+    if not operation:
+        raise HTTPException(status_code=404, detail="Bulk operation not found")
+    return operation
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
 async def get_invoice(
@@ -41,7 +79,11 @@ async def update_invoice(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    return await InvoiceService.update_invoice(db, invoice_id, invoice_data, current_user)
+    try:
+        return await InvoiceService.update_invoice(db, invoice_id, invoice_data, current_user)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail="An invoice already exists for this tenant and month")
 
 @router.delete("/{invoice_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_invoice(

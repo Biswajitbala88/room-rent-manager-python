@@ -72,7 +72,23 @@ DATABASE_URL=postgresql+asyncpg://postgres:root@127.0.0.1:5432/room_rent_manager
 SECRET_KEY=your-super-secret-key-change-this-in-production
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
+ENVIRONMENT=development
 ```
+`DATABASE_URL` is always the database the app actually reads/writes — keep it pointed at your **local** Postgres instance. Never point it at the production database directly; use the Sync Data feature below instead.
+
+`ENVIRONMENT=development` enables the local-only "Sync Data" feature described below. Leave it unset (or `production`) anywhere this app is deployed for real use — the sync endpoint refuses to run unless this is exactly `development`, regardless of who's logged in.
+
+#### Optional: pull real data from the remote database for testing
+If you want your local database seeded with a copy of the production data instead of writing test data by hand, add the remote connection string as a **separate** variable — never reuse `DATABASE_URL` for this:
+```ini
+REMOTE_DATABASE_URL=postgresql+asyncpg://<remote-connection-string>
+```
+Then, as a Super Admin, open **Profile → Developer Tools** in the app and click **Sync Data from Remote**. This:
+- Only ever reads from `REMOTE_DATABASE_URL` (the connection is opened read-only, so Postgres itself rejects any write attempt) and only ever writes to `DATABASE_URL`.
+- Is safe to run repeatedly — each run replaces the local copies of `users`, `rooms`, `tenants`, `invoices`, and `transactions` with a fresh copy from remote, preserving IDs and relationships, so it never produces duplicates.
+- Is logged in the local `sync_logs` table (and server logs) with a start/finish time and either a summary of rows synced or the error that occurred.
+
+The button only appears when `NEXT_PUBLIC_ENABLE_SYNC=true` is set in `frontend/.env.local` (see Section 5) — it's a local dev convenience and is never enabled in a production build.
 
 ### Step 4.4: Run Database Migrations
 Run Alembic to generate the necessary tables in your PostgreSQL database:
@@ -106,6 +122,13 @@ Install the required Node packages:
 ```bash
 npm install
 ```
+
+Create/edit `frontend/.env.local`:
+```ini
+NEXT_PUBLIC_API_URL=http://localhost:9000/api
+NEXT_PUBLIC_ENABLE_SYNC=true
+```
+`NEXT_PUBLIC_ENABLE_SYNC=true` shows the "Sync Data" button on the Profile page for Super Admins (see Section 4.3). Omit it in any deployed/production build.
 
 ### Step 5.3: Start the Frontend Server
 Start the Next.js development server:
