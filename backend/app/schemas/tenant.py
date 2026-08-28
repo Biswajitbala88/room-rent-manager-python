@@ -12,6 +12,10 @@ class TenantBase(BaseModel):
     water_charge: float = 0.0
     is_advanced: bool = False
     advance_amount: float = 0.0
+    has_wallet: bool = False
+    wallet_balance: float = 0.0
+    has_wifi: bool = False
+    wifi_rate: float = 0.0
 
 class TenantCreate(TenantBase):
     parent_id: int | None = None
@@ -28,8 +32,12 @@ class TenantUpdate(BaseModel):
     water_charge: float | None = None
     is_advanced: bool | None = None
     advance_amount: float | None = None
+    has_wallet: bool | None = None
+    has_wifi: bool | None = None
+    wifi_rate: float | None = None
     parent_id: int | None = None
     manager_id: int | None = None
+
 
 class TenantResponse(TenantBase):
     id: int

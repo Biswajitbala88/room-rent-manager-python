@@ -28,7 +28,9 @@ class InvoiceService:
         query = InvoiceService._apply_ownership_scope(query, current_user)
         query = query.order_by(Invoice.month.desc())
         result = await db.execute(query)
-        return result.scalars().all()
+        invoices = result.scalars().all()
+        await InvoiceService.populate_wallet_balances(db, invoices)
+        return invoices
 
     @staticmethod
     async def get_invoice(db: AsyncSession, invoice_id: int, current_user: User) -> Optional[Invoice]:
@@ -37,7 +39,10 @@ class InvoiceService:
         )
         query = InvoiceService._apply_ownership_scope(query, current_user)
         result = await db.execute(query)
-        return result.scalar_one_or_none()
+        invoice = result.scalar_one_or_none()
+        if invoice:
+            await InvoiceService.populate_wallet_balances(db, [invoice])
+        return invoice
 
     @staticmethod
     async def _get_chained_previous_reading(db: AsyncSession, parent_id: int, room_no: str, month: str, exclude_invoice_id: Optional[int] = None) -> int:
@@ -77,8 +82,8 @@ class InvoiceService:
             units = max(0, inv.current_reading - prev_reading)
             inv.electricity_units = units
             inv.electricity_charge = Decimal(units) * Decimal(str(settings.ELECTRIC_RATE))
-            inv.total_amount = inv.rent_amount + inv.electricity_charge + inv.water_charge - inv.advance_applied
-            inv.status = "paid" if inv.total_amount <= inv.received_amount else "unpaid"
+            inv.total_amount = inv.rent_amount + inv.electricity_charge + inv.water_charge + inv.wifi_charge - inv.advance_applied
+            inv.status = "paid" if inv.total_amount <= (inv.received_amount + Decimal(str(inv.wallet_adjustment or 0.0))) else "unpaid"
             prev_reading = inv.current_reading
 
         await db.commit()
@@ -109,6 +114,10 @@ class InvoiceService:
             if tenant.is_advanced or tenant.advance_amount > 0:
                 advance_applied = Decimal(str(tenant.advance_amount)) if tenant.advance_amount > 0 else Decimal(str(tenant.rent_amount))
 
+        wifi_charge = Decimal("0.00")
+        if tenant.has_wifi:
+            wifi_charge = Decimal(str(tenant.wifi_rate))
+
         # previous_reading/electricity_units/electricity_charge/total_amount/status are placeholders here;
         # _rechain_room_invoices below derives them from the chained meter readings and is authoritative.
         new_invoice = Invoice(
@@ -121,8 +130,9 @@ class InvoiceService:
             current_reading=invoice_data.current_reading,
             electricity_charge=Decimal("0.00"),
             water_charge=water_charge,
+            wifi_charge=wifi_charge,
             rent_amount=rent_amount,
-            total_amount=rent_amount + water_charge - advance_applied,
+            total_amount=rent_amount + water_charge + wifi_charge - advance_applied,
             received_amount=received_amount,
             is_excluded=invoice_data.is_excluded,
             is_closer=invoice_data.is_closer,
@@ -134,6 +144,40 @@ class InvoiceService:
         await db.commit()
 
         await InvoiceService._rechain_room_invoices(db, tenant.parent_id, tenant.room_no)
+        await db.refresh(new_invoice)
+
+        # Apply wallet adjustment if requested during creation
+        wallet_adj = Decimal(str(getattr(invoice_data, "wallet_adjustment", 0.0)))
+        if wallet_adj > 0:
+            if not tenant.has_wallet:
+                raise HTTPException(status_code=400, detail="Tenant does not have a digital wallet enabled")
+            
+            # Lock tenant for update
+            tenant_lock_query = select(Tenant).where(Tenant.id == tenant.id).with_for_update()
+            tenant_locked = (await db.execute(tenant_lock_query)).scalar_one()
+            
+            if tenant_locked.wallet_balance < wallet_adj:
+                raise HTTPException(status_code=400, detail=f"Insufficient wallet balance. Available: {tenant_locked.wallet_balance}")
+                
+            if wallet_adj > new_invoice.total_amount:
+                raise HTTPException(status_code=400, detail=f"Wallet adjustment cannot exceed invoice total amount ({new_invoice.total_amount})")
+                
+            tenant_locked.wallet_balance -= wallet_adj
+            new_invoice.wallet_adjustment = wallet_adj
+            new_invoice.status = "paid" if new_invoice.total_amount <= (new_invoice.received_amount + Decimal(str(new_invoice.wallet_adjustment or 0.0))) else "unpaid"
+            
+            from app.models.wallet_transaction import WalletTransaction
+            db.add(WalletTransaction(
+                tenant_id=tenant.id,
+                invoice_id=new_invoice.id,
+                amount=wallet_adj,
+                transaction_type="debit",
+                reason=f"Adjustment for Invoice {new_invoice.month}",
+                performed_by=current_user.id,
+                running_balance=tenant_locked.wallet_balance
+            ))
+            await db.commit()
+            await db.refresh(new_invoice)
 
         if new_invoice.is_closer and new_invoice.status == "paid":
             tenant.status = "close"
@@ -152,6 +196,7 @@ class InvoiceService:
             await db.commit()
 
         await db.refresh(new_invoice)
+        await InvoiceService.populate_wallet_balances(db, [new_invoice])
         await new_invoice.awaitable_attrs.tenant
         return new_invoice
 
@@ -187,6 +232,10 @@ class InvoiceService:
         invoice.received_amount = Decimal(str(invoice_data.received_amount))
         invoice.water_charge = Decimal(str(invoice_data.water_charge))
 
+        # Preserve or update wifi_charge.
+        if invoice.tenant_id != tenant.id:
+            invoice.wifi_charge = Decimal(str(tenant.wifi_rate)) if tenant.has_wifi else Decimal("0.00")
+
         advance_applied = Decimal("0.00")
         if invoice_data.is_closer:
             if tenant.is_advanced or tenant.advance_amount > 0:
@@ -210,6 +259,7 @@ class InvoiceService:
             await db.commit()
 
         await db.refresh(invoice)
+        await InvoiceService.populate_wallet_balances(db, [invoice])
         await invoice.awaitable_attrs.tenant
         return invoice
 
@@ -240,12 +290,12 @@ class InvoiceService:
         if payment_amount_dec <= 0:
             raise HTTPException(status_code=400, detail="Payment amount must be greater than zero")
 
-        due_amount = invoice.total_amount - invoice.received_amount
+        due_amount = invoice.total_amount - invoice.received_amount - Decimal(str(invoice.wallet_adjustment or 0.0))
         if payment_amount_dec > due_amount:
             raise HTTPException(status_code=400, detail=f"Payment amount exceeds due amount. Max allowed: {due_amount}")
 
         invoice.received_amount += payment_amount_dec
-        invoice.status = "paid" if invoice.total_amount <= invoice.received_amount else "unpaid"
+        invoice.status = "paid" if invoice.total_amount <= (invoice.received_amount + Decimal(str(invoice.wallet_adjustment or 0.0))) else "unpaid"
 
         if invoice.is_closer and invoice.status == "paid":
             tenant = await invoice.awaitable_attrs.tenant
@@ -270,6 +320,7 @@ class InvoiceService:
         
         await db.commit()
         await db.refresh(invoice)
+        await InvoiceService.populate_wallet_balances(db, [invoice])
         await invoice.awaitable_attrs.tenant
         return invoice
 
@@ -294,3 +345,101 @@ class InvoiceService:
         query = InvoiceService._apply_ownership_scope(query, current_user)
         result = await db.execute(query)
         return result.scalars().all()
+
+    @staticmethod
+    async def populate_wallet_balances(db: AsyncSession, invoices: List[Invoice]) -> None:
+        if not invoices:
+            return
+        invoice_ids = [inv.id for inv in invoices if Decimal(str(inv.wallet_adjustment or 0.0)) > 0]
+        if not invoice_ids:
+            for inv in invoices:
+                inv.wallet_balance_before = None
+                inv.wallet_balance_after = None
+            return
+            
+        from app.models.wallet_transaction import WalletTransaction
+        query = select(WalletTransaction).where(
+            WalletTransaction.invoice_id.in_(invoice_ids),
+            WalletTransaction.transaction_type == 'debit'
+        ).order_by(WalletTransaction.created_at.asc())
+        result = await db.execute(query)
+        txs = result.scalars().all()
+        
+        from collections import defaultdict
+        txs_by_invoice = defaultdict(list)
+        for tx in txs:
+            txs_by_invoice[tx.invoice_id].append(tx)
+            
+        for inv in invoices:
+            inv_txs = txs_by_invoice.get(inv.id, [])
+            if inv_txs:
+                inv.wallet_balance_before = float(inv_txs[0].running_balance + inv_txs[0].amount)
+                inv.wallet_balance_after = float(inv_txs[-1].running_balance)
+            else:
+                inv.wallet_balance_before = None
+                inv.wallet_balance_after = None
+
+    @staticmethod
+    async def adjust_invoice_wallet(db: AsyncSession, invoice_id: int, adjust_amount: Decimal, current_user: User) -> Invoice:
+        invoice = await InvoiceService.get_invoice(db, invoice_id, current_user)
+        if not invoice:
+            raise HTTPException(status_code=404, detail="Invoice not found")
+        
+        tenant = invoice.tenant
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant associated with invoice not found")
+            
+        if not tenant.has_wallet:
+            raise HTTPException(status_code=400, detail="Digital Wallet is not enabled for this tenant")
+            
+        tenant_lock_query = select(Tenant).where(Tenant.id == tenant.id).with_for_update()
+        tenant_locked = (await db.execute(tenant_lock_query)).scalar_one()
+        
+        if tenant_locked.wallet_balance < adjust_amount:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Insufficient wallet balance. Available: {tenant_locked.wallet_balance}, Requested: {adjust_amount}"
+            )
+            
+        remaining_due = invoice.total_amount - invoice.received_amount - Decimal(str(invoice.wallet_adjustment or 0.0))
+        if adjust_amount > remaining_due:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Adjustment amount exceeds remaining due amount of {remaining_due}"
+            )
+            
+        if adjust_amount <= 0:
+            raise HTTPException(
+                status_code=400, 
+                detail="Adjustment amount must be greater than zero"
+            )
+            
+        tenant_locked.wallet_balance -= adjust_amount
+        invoice.wallet_adjustment = Decimal(str(invoice.wallet_adjustment or 0.0)) + adjust_amount
+        invoice.status = "paid" if invoice.total_amount <= (invoice.received_amount + Decimal(str(invoice.wallet_adjustment or 0.0))) else "unpaid"
+        
+        from app.models.wallet_transaction import WalletTransaction
+        wallet_tx = WalletTransaction(
+            tenant_id=tenant.id,
+            invoice_id=invoice.id,
+            amount=adjust_amount,
+            transaction_type="debit",
+            reason=f"Adjustment for Invoice {invoice.month}",
+            performed_by=current_user.id,
+            running_balance=tenant_locked.wallet_balance
+        )
+        db.add(wallet_tx)
+        
+        if invoice.is_closer and invoice.status == "paid":
+            tenant_locked.status = "close"
+            from app.models.room import Room
+            room_res = await db.execute(select(Room).where(Room.room_no == tenant_locked.room_no, Room.parent_id == tenant_locked.parent_id))
+            room = room_res.scalar_one_or_none()
+            if room:
+                room.status = "vacant"
+                
+        await db.commit()
+        await db.refresh(invoice)
+        await InvoiceService.populate_wallet_balances(db, [invoice])
+        return invoice
+

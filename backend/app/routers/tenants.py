@@ -74,3 +74,25 @@ async def get_tenant_transactions(
     current_user: User = Depends(get_current_user)
 ):
     return await TenantService.get_tenant_transactions(db, tenant_id, current_user)
+
+from app.schemas.wallet_transaction import WalletTransactionCreate, WalletTransactionResponse
+
+@router.post("/{tenant_id}/wallet/transaction", response_model=WalletTransactionResponse)
+async def create_wallet_transaction(
+    tenant_id: int,
+    transaction_data: WalletTransactionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.user_type not in ["SA", "A"]:
+        raise HTTPException(status_code=403, detail="Permission denied. Only Admins can manage wallets.")
+    return await TenantService.add_wallet_transaction(db, tenant_id, transaction_data, current_user)
+
+@router.get("/{tenant_id}/wallet/transactions", response_model=List[WalletTransactionResponse])
+async def get_wallet_transactions(
+    tenant_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return await TenantService.get_wallet_transactions(db, tenant_id, current_user)
+

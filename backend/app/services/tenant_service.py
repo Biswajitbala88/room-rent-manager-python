@@ -79,6 +79,9 @@ class TenantService:
             is_water_charge=tenant_data.is_water_charge,
             water_charge=tenant_data.water_charge,
             is_advanced=tenant_data.is_advanced,
+            has_wallet=tenant_data.has_wallet,
+            has_wifi=tenant_data.has_wifi,
+            wifi_rate=tenant_data.wifi_rate,
             status="active"
         )
         db.add(new_tenant)
@@ -198,3 +201,59 @@ class TenantService:
         query = select(Transaction).where(Transaction.tenant_id == tenant_id).order_by(Transaction.created_at.desc())
         result = await db.execute(query)
         return result.scalars().all()
+
+    @staticmethod
+    async def add_wallet_transaction(
+        db: AsyncSession, tenant_id: int, tx_data: "WalletTransactionCreate", current_user: User
+    ) -> "WalletTransaction":
+        tenant = await TenantService.get_tenant(db, tenant_id, current_user)
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+            
+        if not tenant.has_wallet:
+            raise HTTPException(status_code=400, detail="Digital Wallet is not enabled for this tenant")
+            
+        if tx_data.amount <= 0:
+            raise HTTPException(status_code=400, detail="Transaction amount must be greater than zero")
+            
+        from decimal import Decimal
+        amount_dec = Decimal(str(tx_data.amount))
+        
+        tenant_lock_query = select(Tenant).where(Tenant.id == tenant_id).with_for_update()
+        tenant_locked = (await db.execute(tenant_lock_query)).scalar_one()
+        
+        if tx_data.transaction_type == "credit":
+            tenant_locked.wallet_balance += amount_dec
+        elif tx_data.transaction_type == "debit":
+            if tenant_locked.wallet_balance < amount_dec:
+                raise HTTPException(status_code=400, detail=f"Insufficient wallet balance. Available: {tenant_locked.wallet_balance}")
+            tenant_locked.wallet_balance -= amount_dec
+        else:
+            raise HTTPException(status_code=400, detail="Invalid transaction type. Must be 'credit' or 'debit'")
+            
+        from app.models.wallet_transaction import WalletTransaction
+        wallet_tx = WalletTransaction(
+            tenant_id=tenant_id,
+            amount=amount_dec,
+            transaction_type=tx_data.transaction_type,
+            reason=tx_data.reason,
+            reference=tx_data.reference,
+            performed_by=current_user.id,
+            running_balance=tenant_locked.wallet_balance
+        )
+        db.add(wallet_tx)
+        await db.commit()
+        await db.refresh(wallet_tx)
+        return wallet_tx
+
+    @staticmethod
+    async def get_wallet_transactions(db: AsyncSession, tenant_id: int, current_user: User) -> List["WalletTransaction"]:
+        tenant = await TenantService.get_tenant(db, tenant_id, current_user)
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+            
+        from app.models.wallet_transaction import WalletTransaction
+        query = select(WalletTransaction).where(WalletTransaction.tenant_id == tenant_id).order_by(WalletTransaction.created_at.desc())
+        result = await db.execute(query)
+        return result.scalars().all()
+

@@ -40,7 +40,7 @@ async def get_dashboard_summary(
     pending_invoices_count = pending_invoices_res.scalar_one() or 0
 
     due_sub = invoice_query.where(Invoice.status == "unpaid").subquery()
-    due_amount_res = await db.execute(select(func.sum(due_sub.c.total_amount - due_sub.c.received_amount)).select_from(due_sub))
+    due_amount_res = await db.execute(select(func.sum(due_sub.c.total_amount - due_sub.c.received_amount - due_sub.c.wallet_adjustment)).select_from(due_sub))
     due_amount = due_amount_res.scalar_one() or 0.0
 
     received_sub = invoice_query.subquery()

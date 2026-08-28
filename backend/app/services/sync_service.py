@@ -59,8 +59,40 @@ async def _reset_sequence(conn, table_name: str) -> None:
 
 async def _fetch_remote_rows(remote_conn, table_name: str) -> list[dict]:
     table = Base.metadata.tables[table_name]
-    result = await remote_conn.execute(select(table))
-    return [dict(row._mapping) for row in result.fetchall()]
+    # Check what columns exist in the remote database for this table to support syncing
+    # older schema versions.
+    res = await remote_conn.execute(
+        text("SELECT column_name FROM information_schema.columns WHERE table_name = :table_name AND table_schema = 'public'"),
+        {"table_name": table_name}
+    )
+    remote_columns = {r[0] for r in res.fetchall()}
+    
+    # Fallback to local columns if remote query returned empty
+    if not remote_columns:
+        remote_columns = {c.name for c in table.columns}
+
+    # Select only the columns that exist in the remote schema
+    select_columns = [table.c[col_name] for col_name in remote_columns if col_name in table.c]
+    
+    result = await remote_conn.execute(select(*select_columns))
+    rows = []
+    for row in result.fetchall():
+        row_dict = dict(row._mapping)
+        # Populate defaults for columns present in the local table but missing remotely
+        for c in table.columns:
+            if c.name not in row_dict:
+                default_val = None
+                if c.default is not None:
+                    default_val = c.default.arg if not callable(c.default.arg) else None
+                if default_val is None:
+                    type_str = str(c.type).upper()
+                    if "BOOL" in type_str:
+                        default_val = False
+                    elif any(k in type_str for k in ("NUMERIC", "INT", "FLOAT", "DECIMAL")):
+                        default_val = 0
+                row_dict[c.name] = default_val
+        rows.append(row_dict)
+    return rows
 
 
 async def _upsert_rows(local_conn, table_name: str, rows: list[dict]) -> None:

@@ -24,7 +24,10 @@ export default function NewTenantPage() {
     is_advanced: false,
     advance_amount: '',
     parent_id: '',
-    manager_id: ''
+    manager_id: '',
+    has_wallet: false,
+    has_wifi: false,
+    wifi_rate: ''
   });
 
   // Fetch rooms on mount
@@ -142,6 +145,7 @@ export default function NewTenantPage() {
         rent_amount: parseFloat(formData.rent_amount),
         water_charge: formData.water_charge ? parseFloat(formData.water_charge) : 0,
         advance_amount: formData.is_advanced && formData.advance_amount ? parseFloat(formData.advance_amount) : 0,
+        wifi_rate: formData.has_wifi && formData.wifi_rate ? parseFloat(formData.wifi_rate) : 0,
         start_date: formData.start_date || null,
         parent_id: currentUser?.user_type === 'SA' ? parseInt(formData.parent_id) : currentUser?.id,
         manager_id: formData.manager_id ? parseInt(formData.manager_id) : null
@@ -278,6 +282,20 @@ export default function NewTenantPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Advance Amount (₹)</label>
                 <input type="number" step="0.01" name="advance_amount" value={formData.advance_amount} onChange={handleChange} className="mt-1 block w-full md:w-1/2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+              </div>
+            )}
+            <div className="flex items-center">
+              <input type="checkbox" id="has_wallet" name="has_wallet" checked={formData.has_wallet} onChange={handleChange} className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600" />
+              <label htmlFor="has_wallet" className="ml-2 block text-sm text-gray-900 dark:text-gray-300">Enable Digital Wallet</label>
+            </div>
+            <div className="flex items-center">
+              <input type="checkbox" id="has_wifi" name="has_wifi" checked={formData.has_wifi} onChange={handleChange} className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600" />
+              <label htmlFor="has_wifi" className="ml-2 block text-sm text-gray-900 dark:text-gray-300">Enable Wi-Fi Service</label>
+            </div>
+            {formData.has_wifi && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Wi-Fi Rate (₹/month)</label>
+                <input type="number" step="0.01" name="wifi_rate" value={formData.wifi_rate} onChange={handleChange} className="mt-1 block w-full md:w-1/2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500" required />
               </div>
             )}
           </div>

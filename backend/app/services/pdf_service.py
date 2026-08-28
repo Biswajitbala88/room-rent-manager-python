@@ -57,17 +57,25 @@ class PDFService:
             ["Water Charge", f"{invoice.water_charge:.2f}"],
         ]
         
+        if getattr(invoice, "wifi_charge", 0) > 0:
+            breakdown_data.append(["Wi-Fi Charge", f"{invoice.wifi_charge:.2f}"])
+
         if getattr(invoice, "advance_applied", 0) > 0:
             breakdown_data.append(["Advance Applied", f"-{invoice.advance_applied:.2f}"])
             
+        breakdown_data.append(["Total Amount", f"{invoice.total_amount:.2f}"])
+
+        if getattr(invoice, "wallet_adjustment", 0) > 0:
+            breakdown_data.append(["Wallet Adjustment", f"-{invoice.wallet_adjustment:.2f}"])
+
         breakdown_data.extend([
-            ["Total Amount", f"{invoice.total_amount:.2f}"],
             ["Received Amount", f"{invoice.received_amount:.2f}"],
-            ["Due Amount", f"{(invoice.total_amount - invoice.received_amount):.2f}"]
+            ["Due Amount", f"{(invoice.total_amount - invoice.received_amount - getattr(invoice, 'wallet_adjustment', 0)):.2f}"]
         ])
         
-        total_idx = len(breakdown_data) - 3
+        total_idx = breakdown_data.index(next(row for row in breakdown_data if row[0] == "Total Amount"))
         due_idx = len(breakdown_data) - 1
+
         
         t2 = Table(breakdown_data, colWidths=[4*inch, 2*inch])
         t2.setStyle(TableStyle([

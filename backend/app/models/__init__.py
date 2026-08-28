@@ -6,9 +6,11 @@ from app.models.transaction import Transaction
 from app.models.room import Room
 from app.models.sync_log import SyncLog
 from app.models.bulk_invoice import BulkInvoiceOperation, BulkInvoiceOperationItem
+from app.models.wallet_transaction import WalletTransaction
 
 __all__ = [
     "Base", "User", "Tenant", "Invoice", "Transaction", "Room", "SyncLog",
-    "BulkInvoiceOperation", "BulkInvoiceOperationItem",
+    "BulkInvoiceOperation", "BulkInvoiceOperationItem", "WalletTransaction",
 ]
+
 
