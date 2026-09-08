@@ -148,9 +148,10 @@ async def download_invoice(
     owner = tenant.owner if tenant else current_user
 
     pdf_bytes = PDFService.generate_invoice_pdf(invoice, tenant, owner)
-    
+    filename = PDFService.invoice_filename(invoice, tenant)
+
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=invoice_{invoice.id}.pdf"}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )

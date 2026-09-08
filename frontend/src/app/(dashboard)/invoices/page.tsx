@@ -68,10 +68,16 @@ export default function InvoicesPage() {
       const response = await api.get(`/invoices/${id}/download`, {
         responseType: 'blob'
       });
+      // The backend names the file Invoice_<tenant>_<month>.pdf; fall back to the
+      // invoice id only if the header is missing.
+      const disposition = response.headers['content-disposition'] as string | undefined;
+      const match = disposition?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+      const filename = match ? decodeURIComponent(match[1]) : `invoice_${id}.pdf`;
+
       const windowUrl = window.URL.createObjectURL(new Blob([response.data]));
       const a = document.createElement('a');
       a.href = windowUrl;
-      a.download = `invoice_${id}.pdf`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
