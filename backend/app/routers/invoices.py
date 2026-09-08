@@ -6,7 +6,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.tenant import Tenant
 from app.dependencies import get_current_user
-from app.schemas.invoice import InvoiceResponse, InvoiceCreate, InvoiceUpdate, AddPayment
+from app.schemas.invoice import InvoiceResponse, InvoiceCreate, InvoiceUpdate, AddPayment, WalletAdjustmentRequest
 from app.schemas.bulk_invoice import BulkInvoiceCreateRequest, BulkInvoiceOperationResponse
 from app.services.invoice_service import InvoiceService
 from app.services.bulk_invoice_service import BulkInvoiceService
@@ -102,6 +102,19 @@ async def add_payment(
 ):
     return await InvoiceService.add_payment(db, invoice_id, payment_data, current_user)
 
+@router.post("/{invoice_id}/wallet-adjust", response_model=InvoiceResponse)
+async def adjust_invoice_wallet(
+    invoice_id: int,
+    adjustment_data: WalletAdjustmentRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.user_type not in ["SA", "A"]:
+        raise HTTPException(status_code=403, detail="Permission denied. Only Admins can apply wallet adjustments.")
+    from decimal import Decimal
+    return await InvoiceService.adjust_invoice_wallet(db, invoice_id, Decimal(str(adjustment_data.amount)), current_user)
+
+
 @router.get("/last-units/{room_no}/{month}")
 async def get_last_units(
     room_no: str,
@@ -135,9 +148,10 @@ async def download_invoice(
     owner = tenant.owner if tenant else current_user
 
     pdf_bytes = PDFService.generate_invoice_pdf(invoice, tenant, owner)
-    
+    filename = PDFService.invoice_filename(invoice, tenant)
+
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=invoice_{invoice.id}.pdf"}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )

@@ -221,6 +221,18 @@ export default function TenantsPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="font-medium text-gray-900 dark:text-white">{tenant.name}</div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">{tenant.phone || 'No phone'}</div>
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {tenant.has_wallet && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded-md border border-blue-100 dark:border-blue-800/30">
+                              Wallet: ₹{tenant.wallet_balance ? parseFloat(tenant.wallet_balance).toFixed(2) : '0.00'}
+                            </span>
+                          )}
+                          {tenant.has_wifi && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-md border border-green-100 dark:border-green-800/30">
+                              Wi-Fi: ₹{tenant.wifi_rate ? parseFloat(tenant.wifi_rate).toFixed(2) : '0.00'}/mo
+                            </span>
+                          )}
+                        </div>
                       </td>
                       {currentUser?.user_type === 'SA' && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm">

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import toast from 'react-hot-toast';
+import { Wallet, Sparkles, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 export default function EditInvoicePage() {
   const router = useRouter();
@@ -15,6 +16,11 @@ export default function EditInvoicePage() {
   // true = don't auto-overwrite Received Amount (it holds a real recorded payment until the
   // tenant is reassigned or the user clicks "Set to Payable Total")
   const [receivedTouched, setReceivedTouched] = useState(true);
+
+  const [invoice, setInvoice] = useState<any>(null);
+  const [tenantWalletBalance, setTenantWalletBalance] = useState<number>(0);
+  const [adjustAmount, setAdjustAmount] = useState('');
+  const [applyingWallet, setApplyingWallet] = useState(false);
 
   const [formData, setFormData] = useState({
     tenant_id: '',
@@ -39,19 +45,30 @@ export default function EditInvoicePage() {
 
         // Load invoice details
         const invoiceRes = await api.get(`/invoices/${invoiceId}`);
-        const invoice = invoiceRes.data;
+        const invoiceObj = invoiceRes.data;
+        setInvoice(invoiceObj);
 
         setFormData({
-          tenant_id: invoice.tenant_id.toString(),
-          month: invoice.month,
-          previous_reading: invoice.previous_reading !== null && invoice.previous_reading !== undefined ? invoice.previous_reading.toString() : '',
-          current_reading: invoice.current_reading !== null && invoice.current_reading !== undefined ? invoice.current_reading.toString() : '',
-          electricity_units: invoice.electricity_units !== null && invoice.electricity_units !== undefined ? invoice.electricity_units.toString() : '',
-          water_charge: invoice.water_charge !== null && invoice.water_charge !== undefined ? invoice.water_charge.toString() : '',
-          received_amount: invoice.received_amount !== null && invoice.received_amount !== undefined ? invoice.received_amount.toString() : '',
-          is_closer: invoice.is_closer || false,
-          is_excluded: invoice.is_excluded
+          tenant_id: invoiceObj.tenant_id.toString(),
+          month: invoiceObj.month,
+          previous_reading: invoiceObj.previous_reading !== null && invoiceObj.previous_reading !== undefined ? invoiceObj.previous_reading.toString() : '',
+          current_reading: invoiceObj.current_reading !== null && invoiceObj.current_reading !== undefined ? invoiceObj.current_reading.toString() : '',
+          electricity_units: invoiceObj.electricity_units !== null && invoiceObj.electricity_units !== undefined ? invoiceObj.electricity_units.toString() : '',
+          water_charge: invoiceObj.water_charge !== null && invoiceObj.water_charge !== undefined ? invoiceObj.water_charge.toString() : '',
+          received_amount: invoiceObj.received_amount !== null && invoiceObj.received_amount !== undefined ? invoiceObj.received_amount.toString() : '',
+          is_closer: invoiceObj.is_closer || false,
+          is_excluded: invoiceObj.is_excluded
         });
+
+        const selectedTenant = tenantsRes.data.find((t: any) => t.id === invoiceObj.tenant_id);
+        if (selectedTenant && selectedTenant.has_wallet) {
+          try {
+            const freshTenant = await api.get(`/tenants/${invoiceObj.tenant_id}`);
+            setTenantWalletBalance(freshTenant.data.wallet_balance || 0);
+          } catch {
+            setTenantWalletBalance(selectedTenant.wallet_balance || 0);
+          }
+        }
       } catch (err: any) {
         toast.error('Failed to load invoice details');
         router.push('/invoices');
@@ -151,6 +168,41 @@ export default function EditInvoicePage() {
   const handleSetFullAmount = () => {
     setFormData(prev => ({ ...prev, received_amount: payableTotal.toFixed(2) }));
     setReceivedTouched(true);
+  };
+
+  const handleApplyWalletAdjustment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adjustAmount || parseFloat(adjustAmount) <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+    setApplyingWallet(true);
+    try {
+      const { data } = await api.post(`/invoices/${invoiceId}/wallet-adjust`, {
+        amount: parseFloat(adjustAmount)
+      });
+      toast.success('Wallet adjustment applied successfully');
+      setAdjustAmount('');
+      
+      // Reload page data
+      const invoiceRes = await api.get(`/invoices/${invoiceId}`);
+      const updatedInvoice = invoiceRes.data;
+      setInvoice(updatedInvoice);
+      
+      // Reload tenant wallet
+      const freshTenant = await api.get(`/tenants/${updatedInvoice.tenant_id}`);
+      setTenantWalletBalance(freshTenant.data.wallet_balance || 0);
+
+      // Update received amount
+      setFormData(prev => ({
+        ...prev,
+        received_amount: updatedInvoice.received_amount.toString()
+      }));
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Failed to apply wallet adjustment');
+    } finally {
+      setApplyingWallet(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -256,6 +308,13 @@ export default function EditInvoicePage() {
                 <span>Water Charge:</span>
                 <span className="text-right font-medium text-gray-800 dark:text-gray-200">₹{previewWater.toFixed(2)}</span>
 
+                {invoice && invoice.wifi_charge > 0 && (
+                  <>
+                    <span>Wi-Fi Service Charge:</span>
+                    <span className="text-right font-medium text-gray-800 dark:text-gray-200">₹{parseFloat(invoice.wifi_charge).toFixed(2)}</span>
+                  </>
+                )}
+
                 {previewAdvanceApplied > 0 && (
                   <>
                     <span className="text-red-500 font-semibold">Advance Adjusted:</span>
@@ -267,8 +326,62 @@ export default function EditInvoicePage() {
 
                 <span className="text-sm font-bold text-gray-800 dark:text-gray-150">Payable Total:</span>
                 <span className="text-right text-sm font-bold text-blue-600 dark:text-blue-400">
-                  ₹{payableTotal.toFixed(2)}
+                  ₹{(previewRent + previewElectricity + previewWater + (invoice ? parseFloat(invoice.wifi_charge || 0) : 0) - previewAdvanceApplied).toFixed(2)}
                 </span>
+
+                {invoice && invoice.wallet_adjustment > 0 && (
+                  <>
+                    <span className="text-blue-600 dark:text-blue-400 font-semibold">Applied Wallet Deduction:</span>
+                    <span className="text-right text-xs font-semibold text-blue-600 dark:text-blue-400">-₹{parseFloat(invoice.wallet_adjustment).toFixed(2)}</span>
+                  </>
+                )}
+
+                {invoice && (
+                  <>
+                    <span className="text-gray-850 dark:text-gray-200 font-bold">Outstanding Due:</span>
+                    <span className="text-right text-sm font-black text-red-655 dark:text-red-400">
+                      ₹{Math.max(0, (previewRent + previewElectricity + previewWater + parseFloat(invoice.wifi_charge || 0) - previewAdvanceApplied - parseFloat(invoice.wallet_adjustment || 0) - (parseFloat(formData.received_amount) || 0))).toFixed(2)}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {selectedTenant && selectedTenant.has_wallet && invoice && (
+            <div className="p-4 bg-blue-50/50 dark:bg-blue-900/10 rounded-xl border border-blue-150 dark:border-blue-800/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-blue-900 dark:text-blue-300 flex items-center gap-1.5">
+                  <Wallet className="h-4.5 w-4.5 text-blue-600 dark:text-blue-400" />
+                  Manual Wallet-to-Invoice Adjustment
+                </h4>
+                <span className="text-[11px] font-bold bg-blue-100 dark:bg-blue-900/40 text-blue-850 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                  Wallet Balance: ₹{tenantWalletBalance.toFixed(2)}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                You can apply funds from the tenant's wallet balance directly to this invoice. This will reduce the outstanding due amount.
+              </p>
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Amount to Apply (₹)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={adjustAmount}
+                    onChange={(e) => setAdjustAmount(e.target.value)}
+                    className="w-full text-sm rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleApplyWalletAdjustment}
+                  disabled={applyingWallet}
+                  className="px-4 py-2 text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 rounded-lg shadow-sm disabled:bg-blue-400 transition-colors animate-pulse-slow"
+                >
+                  {applyingWallet ? 'Applying...' : 'Apply Adjustment'}
+                </button>
               </div>
             </div>
           )}

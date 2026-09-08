@@ -68,10 +68,16 @@ export default function InvoicesPage() {
       const response = await api.get(`/invoices/${id}/download`, {
         responseType: 'blob'
       });
+      // The backend names the file Invoice_<tenant>_<month>.pdf; fall back to the
+      // invoice id only if the header is missing.
+      const disposition = response.headers['content-disposition'] as string | undefined;
+      const match = disposition?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+      const filename = match ? decodeURIComponent(match[1]) : `invoice_${id}.pdf`;
+
       const windowUrl = window.URL.createObjectURL(new Blob([response.data]));
       const a = document.createElement('a');
       a.href = windowUrl;
-      a.download = `invoice_${id}.pdf`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -196,7 +202,14 @@ export default function InvoicesPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
                       ₹{invoice.total_amount.toFixed(2)}
-                      <div className="text-xs font-normal text-gray-500 dark:text-gray-400">Due: ₹{(invoice.total_amount - invoice.received_amount).toFixed(2)}</div>
+                      <div className="text-xs font-normal text-gray-500 dark:text-gray-400">
+                        Due: ₹{(invoice.total_amount - invoice.received_amount - (invoice.wallet_adjustment || 0)).toFixed(2)}
+                      </div>
+                      {invoice.wallet_adjustment > 0 && (
+                        <div className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
+                          Wallet Adj: -₹{invoice.wallet_adjustment.toFixed(2)}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${

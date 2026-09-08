@@ -13,6 +13,8 @@ class InvoiceBase(BaseModel):
     is_excluded: bool = False
     is_closer: bool = False
     advance_applied: float = 0.0
+    wifi_charge: float = 0.0
+    wallet_adjustment: float = 0.0
 
 class InvoiceCreate(InvoiceBase):
     pass
@@ -32,6 +34,8 @@ class InvoiceResponse(InvoiceBase):
     updated_at: datetime
     
     tenant: TenantResponse | None = None
+    wallet_balance_before: float | None = None
+    wallet_balance_after: float | None = None
 
     model_config = {"from_attributes": True}
 
@@ -39,3 +43,8 @@ class AddPayment(BaseModel):
     amount: float
     payment_mode: str
     payment_date: str # YYYY-MM-DD
+
+class WalletAdjustmentRequest(BaseModel):
+    amount: float
+
+

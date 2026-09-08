@@ -21,6 +21,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # So the browser can read the PDF download's filename off the response.
+    expose_headers=["Content-Disposition"],
 )
 
 app.include_router(auth.router)
