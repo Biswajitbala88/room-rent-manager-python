@@ -183,10 +183,12 @@ class PDFService:
             [Paragraph("Water Charge", cell_style), money(invoice.water_charge)],
         ]
 
-        if _dec(getattr(invoice, "wifi_charge", 0)) > 0:
-            rows.append(
-                [Paragraph("Wi-Fi Charge", cell_style), money(invoice.wifi_charge)]
-            )
+        # Show the Wi-Fi line whenever the tenant is subscribed, even if the rate is
+        # zero, so the tenant can see the service is on their account. Also show it
+        # for a historic invoice that was billed for Wi-Fi before it was turned off.
+        wifi_charge = _dec(getattr(invoice, "wifi_charge", 0))
+        if (tenant is not None and getattr(tenant, "has_wifi", False)) or wifi_charge > 0:
+            rows.append([Paragraph("Wi-Fi Charge", cell_style), money(wifi_charge)])
 
         advance = _dec(getattr(invoice, "advance_applied", 0))
         if advance > 0:

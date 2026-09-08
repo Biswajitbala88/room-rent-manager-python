@@ -232,9 +232,13 @@ class InvoiceService:
         invoice.received_amount = Decimal(str(invoice_data.received_amount))
         invoice.water_charge = Decimal(str(invoice_data.water_charge))
 
-        # Preserve or update wifi_charge.
-        if invoice.tenant_id != tenant.id:
-            invoice.wifi_charge = Decimal(str(tenant.wifi_rate)) if tenant.has_wifi else Decimal("0.00")
+        # Re-derive wifi_charge from the tenant, the same way rent_amount is above.
+        # (This used to be guarded by `invoice.tenant_id != tenant.id`, which could
+        # never be true: invoice.tenant_id had just been assigned from
+        # invoice_data.tenant_id, which is exactly the tenant that was loaded. So an
+        # invoice created before Wi-Fi was enabled kept wifi_charge = 0 forever, even
+        # after an edit.)
+        invoice.wifi_charge = Decimal(str(tenant.wifi_rate)) if tenant.has_wifi else Decimal("0.00")
 
         advance_applied = Decimal("0.00")
         if invoice_data.is_closer:
