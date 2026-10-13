@@ -1,0 +1,126 @@
+{
+  "info": {
+    "name": "Room Rent Manager API",
+    "_postman_id": "room-rent-manager-api-collection",
+    "description": "Auto-generated Postman collection for backend APIs (Room Rent Manager). Replace {{base_url}} and set {{access_token}} in environment before making authenticated requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {"mode": "raw", "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"},
+            "url": {"raw": "{{base_url}}/api/auth/register", "host": ["{{base_url}}"], "path": ["api","auth","register"]}
+          }
+        },
+        {
+          "name": "Login (form)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {"mode": "urlencoded","urlencoded": [
+              {"key":"username","value":"test@example.com","type":"text"},
+              {"key":"password","value":"password123","type":"text"}
+            ]},
+            "url": {"raw": "{{base_url}}/api/auth/login", "host": ["{{base_url}}"], "path": ["api","auth","login"]}
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{access_token}}"}
+            ],
+            "url": {"raw": "{{base_url}}/api/auth/logout", "host": ["{{base_url}}"], "path": ["api","auth","logout"]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "Profile",
+      "item": [
+        {"name":"Get profile","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/auth/me","host":["{{base_url}}"],"path":["api","auth","me"]}}},
+        {"name":"Update profile","request":{"method":"PATCH","header":[{"key":"Authorization","value":"Bearer {{access_token}}"},{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"name\": \"New Name\"\n}"},"url":{"raw":"{{base_url}}/api/auth/me","host":["{{base_url}}"],"path":["api","auth","me"]}}},
+        {"name":"Change password","request":{"method":"PATCH","header":[{"key":"Authorization","value":"Bearer {{access_token}}"},{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"current_password\": \"password123\",\n  \"new_password\": \"newpass123\"\n}"},"url":{"raw":"{{base_url}}/api/auth/me/password","host":["{{base_url}}"],"path":["api","auth","me","password"]}}}
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {"name":"List users","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/users","host":["{{base_url}}"],"path":["api","users"]}}},
+        {"name":"Create user","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{access_token}}"},{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"name\": \"Manager\",\n  \"email\": \"manager@example.com\",\n  \"password\": \"pass123\",\n  \"user_type\": \"M\"\n}"},"url":{"raw":"{{base_url}}/api/users","host":["{{base_url}}"],"path":["api","users"]}}},
+        {"name":"Update user","request":{"method":"PUT","header":[{"key":"Authorization","value":"Bearer {{access_token}}"},{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"name\": \"Updated Name\"\n}"},"url":{"raw":"{{base_url}}/api/users/{{user_id}}","host":["{{base_url}}"],"path":["api","users","{{user_id}}"]}}},
+        {"name":"Delete user","request":{"method":"DELETE","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/users/{{user_id}}","host":["{{base_url}}"],"path":["api","users","{{user_id}}"]}}}
+      ]
+    },
+    {
+      "name": "Tenants",
+      "item": [
+        {"name":"List tenants","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/tenants","host":["{{base_url}}"],"path":["api","tenants"]}}},
+        {"name":"Create tenant","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{access_token}}"},{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"name\": \"Tenant Name\",\n  \"room_id\": 1\n}"},"url":{"raw":"{{base_url}}/api/tenants","host":["{{base_url}}"],"path":["api","tenants"]}}},
+        {"name":"Get tenant","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/tenants/{{tenant_id}}","host":["{{base_url}}"],"path":["api","tenants","{{tenant_id}}"]}}},
+        {"name":"Update tenant","request":{"method":"PUT","header":[{"key":"Authorization","value":"Bearer {{access_token}}"},{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"name\": \"Updated Tenant\"\n}"},"url":{"raw":"{{base_url}}/api/tenants/{{tenant_id}}","host":["{{base_url}}"],"path":["api","tenants","{{tenant_id}}"]}}},
+        {"name":"Delete tenant","request":{"method":"DELETE","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/tenants/{{tenant_id}}","host":["{{base_url}}"],"path":["api","tenants","{{tenant_id}}"]}}},
+        {"name":"Upload Aadhaar (files)","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"body":{"mode":"formdata","formdata":[{"key":"files","type":"file","src":"/path/to/aadhaar1.jpg"}]},"url":{"raw":"{{base_url}}/api/tenants/{{tenant_id}}/upload-aadhaar","host":["{{base_url}}"],"path":["api","tenants","{{tenant_id}}","upload-aadhaar"]}}},
+        {"name":"Get tenant transactions","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/tenants/{{tenant_id}}/transactions","host":["{{base_url}}"],"path":["api","tenants","{{tenant_id}}","transactions"]}}},
+        {"name":"Create wallet transaction","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{access_token}}"},{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"amount\": 100.0,\n  \"type\": \"credit\",\n  \"note\": \"Top up\"\n}"},"url":{"raw":"{{base_url}}/api/tenants/{{tenant_id}}/wallet/transaction","host":["{{base_url}}"],"path":["api","tenants","{{tenant_id}}","wallet","transaction"]}}},
+        {"name":"Get wallet transactions","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/tenants/{{tenant_id}}/wallet/transactions","host":["{{base_url}}"],"path":["api","tenants","{{tenant_id}}","wallet","transactions"]}}}
+      ]
+    },
+    {
+      "name": "Invoices",
+      "item": [
+        {"name":"List invoices","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/invoices","host":["{{base_url}}"],"path":["api","invoices"]}}},
+        {"name":"Create invoice","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{access_token}}"},{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"tenant_id\": 1,\n  \"month\": \"2026-10\",\n  \"total_amount\": 1000.0\n}"},"url":{"raw":"{{base_url}}/api/invoices","host":["{{base_url}}"],"path":["api","invoices"]}}},
+        {"name":"Create bulk invoices","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{access_token}}"},{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"month\": \"2026-10\",\n  \"rooms\": [1,2,3]\n}"},"url":{"raw":"{{base_url}}/api/invoices/bulk","host":["{{base_url}}"],"path":["api","invoices","bulk"]}}},
+        {"name":"List bulk operations","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/invoices/bulk","host":["{{base_url}}"],"path":["api","invoices","bulk"]}}},
+        {"name":"Get bulk operation","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/invoices/bulk/{{operation_id}}","host":["{{base_url}}"],"path":["api","invoices","bulk","{{operation_id}}"]}}},
+        {"name":"Get invoice","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/invoices/{{invoice_id}}","host":["{{base_url}}"],"path":["api","invoices","{{invoice_id}}"]}}},
+        {"name":"Update invoice","request":{"method":"PUT","header":[{"key":"Authorization","value":"Bearer {{access_token}}"},{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"total_amount\": 1200.0\n}"},"url":{"raw":"{{base_url}}/api/invoices/{{invoice_id}}","host":["{{base_url}}"],"path":["api","invoices","{{invoice_id}}"]}}},
+        {"name":"Delete invoice","request":{"method":"DELETE","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/invoices/{{invoice_id}}","host":["{{base_url}}"],"path":["api","invoices","{{invoice_id}}"]}}},
+        {"name":"Add payment","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{access_token}}"},{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"amount\": 500.0,\n  \"payment_mode\": \"cash\"\n}"},"url":{"raw":"{{base_url}}/api/invoices/{{invoice_id}}/add-payment","host":["{{base_url}}"],"path":["api","invoices","{{invoice_id}}","add-payment"]}}},
+        {"name":"Wallet adjust","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{access_token}}"},{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"amount\": 100.0\n}"},"url":{"raw":"{{base_url}}/api/invoices/{{invoice_id}}/wallet-adjust","host":["{{base_url}}"],"path":["api","invoices","{{invoice_id}}","wallet-adjust"]}}},
+        {"name":"Get last units","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/invoices/last-units/{{room_no}}/{{month}}?exclude_invoice_id={{exclude_invoice_id}}","host":["{{base_url}}"],"path":["api","invoices","last-units","{{room_no}}","{{month}}"],"query":[{"key":"exclude_invoice_id","value":""}]}},
+        {"name":"Get due invoices","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/invoices/due/{{tenant_id}}","host":["{{base_url}}"],"path":["api","invoices","due","{{tenant_id}}"]}}},
+        {"name":"Download invoice (PDF)","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/invoices/{{invoice_id}}/download","host":["{{base_url}}"],"path":["api","invoices","{{invoice_id}}","download"]}}}
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {"name":"Summary","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/dashboard/summary?month={{month}}","host":["{{base_url}}"],"path":["api","dashboard","summary"],"query":[{"key":"month","value":"2026-10"}]}}}
+      ]
+    },
+    {
+      "name": "Electricity",
+      "item": [
+        {"name":"Get electricity report","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/electricity?month={{month}}&tenant_id={{tenant_id}}&room_no={{room_no}}&page={{page}}&limit={{limit}}","host":["{{base_url}}"],"path":["api","electricity"],"query":[{"key":"month","value":""},{"key":"tenant_id","value":""},{"key":"room_no","value":""},{"key":"page","value":"1"},{"key":"limit","value":"10"}]}}}
+      ]
+    },
+    {
+      "name": "Rooms",
+      "item": [
+        {"name":"List rooms","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/rooms","host":["{{base_url}}"],"path":["api","rooms"]}}},
+        {"name":"Create room","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{access_token}}"},{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"room_no\": \"A101\",\n  \"rent\": 5000\n}"},"url":{"raw":"{{base_url}}/api/rooms","host":["{{base_url}}"],"path":["api","rooms"]}}},
+        {"name":"Get room","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/rooms/{{room_id}}","host":["{{base_url}}"],"path":["api","rooms","{{room_id}}"]}}},
+        {"name":"Update room","request":{"method":"PUT","header":[{"key":"Authorization","value":"Bearer {{access_token}}"},{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"rent\": 5500\n}"},"url":{"raw":"{{base_url}}/api/rooms/{{room_id}}","host":["{{base_url}}"],"path":["api","rooms","{{room_id}}"]}}},
+        {"name":"Delete room","request":{"method":"DELETE","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/rooms/{{room_id}}","host":["{{base_url}}"],"path":["api","rooms","{{room_id}}"]}}}
+      ]
+    },
+    {
+      "name": "Sync",
+      "item": [
+        {"name":"Trigger sync","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/sync/run","host":["{{base_url}}"],"path":["api","sync","run"]}}},
+        {"name":"Sync history","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{access_token}}"}],"url":{"raw":"{{base_url}}/api/sync/history","host":["{{base_url}}"],"path":["api","sync","history"]}}}
+      ]
+    }
+  ]
+}
