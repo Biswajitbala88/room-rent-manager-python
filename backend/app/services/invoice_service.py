@@ -351,6 +351,41 @@ class InvoiceService:
         return result.scalars().all()
 
     @staticmethod
+    async def get_previous_dues(db: AsyncSession, invoice: Invoice, current_user: User) -> List[dict]:
+        """Fetch all earlier unpaid invoices for this tenant prior to invoice.month.
+        Returns a list of dicts: [{'id': inv.id, 'month': inv.month, 'due_amount': Decimal('850.00'), 'invoice': inv}, ...]
+        sorted chronologically by month ascending.
+        """
+        if not invoice.tenant_id or not invoice.month:
+            return []
+
+        query = select(Invoice).where(
+            Invoice.tenant_id == invoice.tenant_id,
+            Invoice.month < invoice.month,
+            Invoice.is_excluded == False,
+            Invoice.id != invoice.id,
+        ).order_by(Invoice.month.asc())
+
+        query = InvoiceService._apply_ownership_scope(query, current_user)
+        result = await db.execute(query)
+        earlier_invoices = result.scalars().all()
+
+        previous_dues = []
+        for inv in earlier_invoices:
+            total = Decimal(str(inv.total_amount or 0))
+            wallet = Decimal(str(inv.wallet_adjustment or 0))
+            paid = Decimal(str(inv.received_amount or 0)) + wallet
+            due = total - paid
+            if due > 0:
+                previous_dues.append({
+                    "id": inv.id,
+                    "month": inv.month,
+                    "due_amount": due,
+                    "invoice": inv,
+                })
+        return previous_dues
+
+    @staticmethod
     async def populate_wallet_balances(db: AsyncSession, invoices: List[Invoice]) -> None:
         if not invoices:
             return

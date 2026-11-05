@@ -61,7 +61,8 @@ export default function DashboardPage() {
       const initialAmounts: { [invoiceId: number]: string } = {};
       const initialModes: { [invoiceId: number]: string } = {};
       data.forEach((inv: any) => {
-        initialAmounts[inv.id] = (inv.total_amount - inv.received_amount).toFixed(2);
+        const walletAdj = inv.wallet_adjustment || 0;
+        initialAmounts[inv.id] = Math.max(0, inv.total_amount - inv.received_amount - walletAdj).toFixed(2);
         initialModes[inv.id] = 'Cash';
       });
       setPaymentAmounts(initialAmounts);
@@ -203,12 +204,20 @@ export default function DashboardPage() {
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Unpaid Invoices</h3>
             <div className="grid grid-cols-1 gap-4">
               {dueInvoices.map((invoice) => {
-                const dueAmount = invoice.total_amount - invoice.received_amount;
+                const walletAdj = invoice.wallet_adjustment || 0;
+                const dueAmount = Math.max(0, invoice.total_amount - invoice.received_amount - walletAdj);
                 return (
                   <div key={invoice.id} className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                       <h4 className="font-bold text-gray-900 dark:text-white">{format(new Date(`${invoice.month}-01`), 'MMMM yyyy')}</h4>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total: ₹{invoice.total_amount.toFixed(2)} | Paid: ₹{invoice.received_amount.toFixed(2)}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Total: ₹{invoice.total_amount.toFixed(2)} | Paid: ₹{invoice.received_amount.toFixed(2)}
+                        {walletAdj > 0 && (
+                          <span className="text-blue-600 dark:text-blue-400 font-semibold ml-2">
+                            | Wallet Adj: -₹{walletAdj.toFixed(2)}
+                          </span>
+                        )}
+                      </p>
                       <p className="text-sm font-semibold text-red-650 dark:text-red-400 mt-1">Remaining Due: ₹{dueAmount.toFixed(2)}</p>
                     </div>
 

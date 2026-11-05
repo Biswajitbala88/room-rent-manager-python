@@ -100,7 +100,12 @@ class PDFService:
         return f"Invoice_{name}_{month}.pdf"
 
     @staticmethod
-    def generate_invoice_pdf(invoice: Invoice, tenant: Tenant, user: User) -> bytes:
+    def generate_invoice_pdf(
+        invoice: Invoice,
+        tenant: Tenant,
+        user: User,
+        previous_dues: list | None = None,
+    ) -> bytes:
         font, bold, rupee = _fonts()
 
         def money(value) -> str:
@@ -211,8 +216,34 @@ class PDFService:
 
         rows.append(["Paid", money(paid)])
         paid_idx = len(rows) - 1
-        rows.append(["Due", money(due)])
-        due_idx = len(rows) - 1
+
+        prev_list = previous_dues or []
+        prev_indices = []
+        curr_due_idx = None
+        total_payable_idx = None
+        due_idx = None
+
+        if prev_list:
+            current_month_label = _month_label(invoice.month)
+            rows.append([f"Due ({current_month_label})", money(due)])
+            curr_due_idx = len(rows) - 1
+
+            for prev in prev_list:
+                p_month = _month_label(prev.get("month", ""))
+                p_amount = _dec(prev.get("due_amount", 0))
+                rows.append([f"Due for {p_month}", money(p_amount)])
+                prev_indices.append((len(rows) - 1, p_amount))
+
+            total_payable = due + sum(_dec(p.get("due_amount", 0)) for p in prev_list)
+            rows.append(["Total Payable Amount", money(total_payable)])
+            total_payable_idx = len(rows) - 1
+            last_summary_idx = total_payable_idx
+            total_due_for_status = total_payable
+        else:
+            rows.append(["Due", money(due)])
+            due_idx = len(rows) - 1
+            last_summary_idx = due_idx
+            total_due_for_status = due
 
         table = Table(rows, colWidths=[4.5 * inch, 1.9 * inch], hAlign="LEFT")
         style = [
@@ -235,19 +266,27 @@ class PDFService:
             ("FONTNAME", (0, total_idx), (-1, total_idx), bold),
             ("TEXTCOLOR", (0, total_idx), (-1, total_idx), colors.white),
             # Paid / Due summary rows
-            ("BACKGROUND", (0, paid_idx), (-1, due_idx), ROW_BG),
-            ("FONTNAME", (0, paid_idx), (-1, due_idx), bold),
-            ("TEXTCOLOR", (0, paid_idx), (0, due_idx), colors.black),
+            ("BACKGROUND", (0, paid_idx), (-1, last_summary_idx), ROW_BG),
+            ("FONTNAME", (0, paid_idx), (-1, last_summary_idx), bold),
+            ("TEXTCOLOR", (0, paid_idx), (0, last_summary_idx), colors.black),
             ("TEXTCOLOR", (1, paid_idx), (1, paid_idx), GREEN),
-            ("TEXTCOLOR", (1, due_idx), (1, due_idx), RED if due > 0 else GREEN),
         ]
+        if prev_list:
+            style.append(("TEXTCOLOR", (1, curr_due_idx), (1, curr_due_idx), RED if due > 0 else GREEN))
+            for p_idx, p_amt in prev_indices:
+                style.append(("TEXTCOLOR", (1, p_idx), (1, p_idx), RED if p_amt > 0 else GREEN))
+            style.append(("TEXTCOLOR", (1, total_payable_idx), (1, total_payable_idx), RED if total_payable > 0 else GREEN))
+            style.append(("LINEABOVE", (0, total_payable_idx), (-1, total_payable_idx), 0.8, BORDER))
+        else:
+            style.append(("TEXTCOLOR", (1, due_idx), (1, due_idx), RED if due > 0 else GREEN))
+
         if wallet_idx is not None:
             style.append(("BACKGROUND", (0, wallet_idx), (-1, wallet_idx), colors.white))
         table.setStyle(TableStyle(style))
         elements.append(table)
 
         # --- Status + footer -------------------------------------------------
-        is_paid = due <= 0
+        is_paid = total_due_for_status <= 0
         status_text = "Paid" if is_paid else "Due"
         status_color = GREEN if is_paid else RED
         elements.append(Spacer(1, 0.18 * inch))

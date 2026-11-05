@@ -147,7 +147,8 @@ async def download_invoice(
     tenant = invoice.tenant
     owner = tenant.owner if tenant else current_user
 
-    pdf_bytes = PDFService.generate_invoice_pdf(invoice, tenant, owner)
+    previous_dues = await InvoiceService.get_previous_dues(db, invoice, current_user)
+    pdf_bytes = PDFService.generate_invoice_pdf(invoice, tenant, owner, previous_dues=previous_dues)
     filename = PDFService.invoice_filename(invoice, tenant)
 
     return Response(
